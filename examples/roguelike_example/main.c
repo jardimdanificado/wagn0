@@ -103,7 +103,7 @@ void draw() {
         }
     }
 
-    olivec_fill(_oc, W_RGB565(10, 10, 15));
+    olivec_fill(_oc, rgb(10, 10, 15));
     int off_x = (320 - GRID_W * 16) / 2, off_y = (240 - GRID_H * 16) / 2;
     
     for (int y = 0; y < GRID_H; y++) {

@@ -1,15 +1,91 @@
 # wagn0
 
-high-level game development API for wagnostic.
+High-level game development API for Wagnostic.
 
 ```c
 #include "wagn0.h"
 
+void setup() { }
+
 void draw() {
-    background(WAGN0_BLUE);
-    fill(WAGN0_RED);
+    background(BLUE);
+    fill(RED);
     rect(10, 10, 100, 80);
 }
+```
+
+## Bit Depth
+
+```c
+#define WAGN0_BPP 32   // 8, 16 (default), or 32
+#include "wagn0.h"
+```
+
+Pixel type and color macros adapt automatically:
+
+| BPP | `pixel_t` | `rgb(r,g,b)` returns | Example |
+|-----|-----------|----------------------|---------|
+| 8   | `uint8_t` | RGB332               | `fill(0xE0)` |
+| 16  | `uint16_t`| RGB565               | `fill(0xF800)` |
+| 32  | `uint32_t`| RGBA8888             | `fill(0xFF0000FF)` |
+
+Colors can be specified directly or via helpers:
+
+```c
+fill(rgb(255, 0, 0));       // red in current BPP
+fill(rgba(255, 0, 0, 128)); // with alpha (32bpp only)
+fill(hex(0xFF8800));        // hex → pixel_t
+fill(0xF800);               // raw pixel_t value
+```
+
+## API
+
+```c
+// Drawing state
+fill(pixel_t c);    no_fill();
+stroke(pixel_t c);  no_stroke();  stroke_weight(int);
+
+// Primitives
+background(pixel_t c);
+rect(x, y, w, h);   ellipse(x, y, w, h);
+line(x1, y1, x2, y2);  point(x, y);
+triangle(x1,y1,x2,y2,x3,y3);
+quad(x1,y1,x2,y2,x3,y3,x4,y4);
+arc(x, y, w, h, start_angle, stop_angle);
+
+// Text (bitmap placeholder)
+text(str, x, y);  text_size(int);  text_width(str);
+
+// Images
+Wagn0Image img = create_image_from_data(data, w, h, bpp);
+image(img, x, y);  image_scaled(img, x, y, w, h);
+
+// Math
+float map(v, s1, s2, t1, t2);  float constrain(v, min, max);
+float lerp(a, b, t);            float dist(x1, y1, x2, y2);
+float sin(x);  float cos(x);
+int   random(min, max);
+Vec2  vec2(x, y);  vec2_add(a, b);  // etc.
+
+// Status
+wagn0.mouse.x  wagn0.mouse.y          // mouse position
+wagn0.mouse_down                       // mouse held
+wagn0.mouse_pressed  .mouse_released   // edges
+wagn0.keys[scancode]                   // keyboard
+wagn0.delta_time                       // seconds since last frame
+wagn0.frame_count                      // frame counter
+```
+
+## User Functions
+
+```c
+void setup(void);     // called once on first frame
+void update(void);    // called before draw, every frame
+void draw(void);      // called every frame
+void mouse_pressed(void);
+void mouse_released(void);
+void key_pressed(int key);
+void key_released(int key);
 ```
 
 ## Quick Start
@@ -24,25 +100,10 @@ cd mygame
 ## Structure
 
 ```
-include/
-├── wagn0.h
-│   wagnostic.h
-└── olive.c
-
-examples/
-├── draw_example/
-├── images_example/
-├── audio_example/
-├── audio_test/
-├── mouse_platformer/
-├── roguelike_example/
-├── tracker_example/
-├── test_8bpp/
-├── test_16bpp/
-└── test_32bpp/
-
-templates/           project templates for `wagn0 new`
-tools/               asset conversion utilities
+include/    wagn0.h, wagnostic.h, olive.c
+examples/   10 example projects (each with wagn0.json)
+templates/  project templates for `wagn0 new`
+tools/      asset conversion utilities (img2c, audio2pcm)
 ```
 
 ## Commands

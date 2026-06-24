@@ -56,8 +56,8 @@ void draw() {
         olivec_sprite_copy(_oc, (int)_sprites[i].x, (int)_sprites[i].y, _sprites[i].w, _sprites[i].h, _img_sprite);
     }
 
-    olivec_rect(_oc, 5, 220, 80, 15, W_RGB565(0, 0, 0));
-    olivec_text(_oc, _fps_text, 10, 222, olivec_default_font, 1, W_RGB565(255, 255, 255));
+    olivec_rect(_oc, 5, 220, 80, 15, rgb(0, 0, 0));
+    olivec_text(_oc, _fps_text, 10, 222, olivec_default_font, 1, rgb(255, 255, 255));
     
     
 }

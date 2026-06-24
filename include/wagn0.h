@@ -20,20 +20,61 @@
 #include <stdbool.h>
 
 // ============================================
-// WAGNOSTIC COMPATIBILITY MACROS
+// BIT DEPTH CONFIGURATION
+// ============================================
+// Define WAGN0_BPP before including to change pixel format:
+//   #define WAGN0_BPP 8   // RGB332  (uint8)
+//   #define WAGN0_BPP 16  // RGB565  (uint16) — default
+//   #define WAGN0_BPP 32  // RGBA8888 (uint32)
+
+#ifndef WAGN0_BPP
+#define WAGN0_BPP 16
+#endif
+
+#if WAGN0_BPP == 8
+    typedef uint8_t pixel_t;
+#elif WAGN0_BPP == 16
+    typedef uint16_t pixel_t;
+#elif WAGN0_BPP == 32
+    typedef uint32_t pixel_t;
+#else
+    #error "WAGN0_BPP must be 8, 16, or 32"
+#endif
+
+// ============================================
+// COLOR CONVERSION (input → pixel_t)
 // ============================================
 
-#ifndef W_RGB565
-#define W_RGB565(r, g, b) (uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
+static inline pixel_t rgb(uint8_t r, uint8_t g, uint8_t b) {
+#if WAGN0_BPP == 8
+    return (pixel_t)(((r) & 0xE0) | (((g) & 0xE0) >> 3) | ((b) & 0xC0) >> 6);
+#elif WAGN0_BPP == 16
+    return (pixel_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3));
+#else
+    return (pixel_t)((0xFF << 24) | ((b) << 16) | ((g) << 8) | (r));
 #endif
+}
 
-#ifndef W_RGBA
-#define W_RGBA(r, g, b, a) (uint32_t)(((a) << 24) | ((b) << 16) | ((g) << 8) | (r))
+static inline pixel_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+#if WAGN0_BPP == 32
+    return (pixel_t)(((a) << 24) | ((b) << 16) | ((g) << 8) | (r));
+#else
+    return rgb(r, g, b);  // ignore alpha in 8/16bpp
 #endif
+}
 
-#ifndef W_RGB332
-#define W_RGB332(r, g, b) (uint8_t)(((r) & 0xE0) | (((g) & 0xE0) >> 3) | (((b) & 0xC0) >> 6))
-#endif
+// Predefined colors — always pixel_t
+#define BLACK   rgb(0,0,0)
+#define WHITE   rgb(255,255,255)
+#define RED     rgb(255,0,0)
+#define GREEN   rgb(0,255,0)
+#define BLUE    rgb(0,0,255)
+#define YELLOW  rgb(255,255,0)
+#define CYAN    rgb(0,255,255)
+#define MAGENTA rgb(255,0,255)
+#define GRAY    rgb(128,128,128)
+#define ORANGE  rgb(255,165,0)
+#define PURPLE  rgb(128,0,128)
 
 // ============================================
 // CORE TYPES
@@ -79,8 +120,8 @@ static struct {
     bool keys_released[256];
     
     // Graphics
-    Color fill_color;
-    Color stroke_color;
+    pixel_t fill_color;
+    pixel_t stroke_color;
     int stroke_weight;
     bool no_fill;
     bool no_stroke;
@@ -90,28 +131,12 @@ static struct {
 } wagn0;
 
 // ============================================
-// COLOR CONSTANTS
+// MATH CONSTANTS
 // ============================================
 
-#define WAGN0_BLACK   ((Color){0, 0, 0, 255})
-#define WAGN0_WHITE   ((Color){255, 255, 255, 255})
-#define WAGN0_RED     ((Color){255, 0, 0, 255})
-#define WAGN0_GREEN   ((Color){0, 255, 0, 255})
-#define WAGN0_BLUE    ((Color){0, 0, 255, 255})
-#define WAGN0_YELLOW  ((Color){255, 255, 0, 255})
-#define WAGN0_CYAN    ((Color){0, 255, 255, 255})
-#define WAGN0_MAGENTA ((Color){255, 0, 255, 255})
-#define WAGN0_GRAY    ((Color){128, 128, 128, 255})
-#define WAGN0_ORANGE  ((Color){255, 165, 0, 255})
-#define WAGN0_PURPLE  ((Color){128, 0, 128, 255})
-
-// ============================================
-// MATH UTILITIES
-// ============================================
-
-#define WAGN0_PI 3.14159265358979f
-#define WAGN0_TWO_PI 6.28318530717959f
-#define WAGN0_HALF_PI 1.5707963267949f
+#define PI 3.14159265358979f
+#define TWO_PI 6.28318530717959f
+#define HALF_PI 1.5707963267949f
 
 static inline float map(float value, float start1, float stop1, float start2, float stop2) {
     return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
@@ -158,18 +183,18 @@ static inline float max(float a, float b) {
 // Trigonometric functions using Bhaskara I approximation
 static inline float sin(float x) {
     // Normalize to [0, 2π]
-    while (x < 0) x += WAGN0_TWO_PI;
-    while (x >= WAGN0_TWO_PI) x -= WAGN0_TWO_PI;
+    while (x < 0) x += TWO_PI;
+    while (x >= TWO_PI) x -= TWO_PI;
     
-    if (x > WAGN0_PI) {
-        float y = x - WAGN0_PI;
-        return -16.0f * y * (WAGN0_PI - y) / (5.0f * WAGN0_PI * WAGN0_PI - 4.0f * y * (WAGN0_PI - y));
+    if (x > PI) {
+        float y = x - PI;
+        return -16.0f * y * (PI - y) / (5.0f * PI * PI - 4.0f * y * (PI - y));
     }
-    return 16.0f * x * (WAGN0_PI - x) / (5.0f * WAGN0_PI * WAGN0_PI - 4.0f * x * (WAGN0_PI - x));
+    return 16.0f * x * (PI - x) / (5.0f * PI * PI - 4.0f * x * (PI - x));
 }
 
 static inline float cos(float x) {
-    return sin(x + WAGN0_HALF_PI);
+    return sin(x + HALF_PI);
 }
 
 static inline int random_int(int min_val, int max_val) {
@@ -184,38 +209,15 @@ static inline float random(float min_val, float max_val) {
 }
 
 // ============================================
-// COLOR FUNCTIONS
+// COLOR HELPERS (return pixel_t, BPP-aware)
 // ============================================
 
-static inline Color color_rgb(uint8_t r, uint8_t g, uint8_t b) {
-    Color c;
-    c.r = r;
-    c.g = g;
-    c.b = b;
-    c.a = 255;
-    return c;
+static inline pixel_t hex(uint32_t h) {
+    return rgb((h>>16)&0xFF, (h>>8)&0xFF, h&0xFF);
 }
 
-static inline Color color_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-    Color c;
-    c.r = r;
-    c.g = g;
-    c.b = b;
-    c.a = a;
-    return c;
-}
-
-static inline Color color_hex(uint32_t hex) {
-    Color c;
-    c.r = (hex >> 16) & 0xFF;
-    c.g = (hex >> 8) & 0xFF;
-    c.b = hex & 0xFF;
-    c.a = 255;
-    return c;
-}
-
-static inline uint16_t color_to_rgb565(Color c) {
-    return W_RGB565(c.r, c.g, c.b);
+static inline pixel_t hexa(uint32_t h) {
+    return rgba((h>>24)&0xFF, (h>>16)&0xFF, (h>>8)&0xFF, h&0xFF);
 }
 
 // ============================================
@@ -252,7 +254,7 @@ static inline Vec2 vec2_normalize(Vec2 v) {
 // DRAWING STATE FUNCTIONS
 // ============================================
 
-static inline void fill(Color c) {
+static inline void fill(pixel_t c) {
     wagn0.fill_color = c;
     wagn0.no_fill = false;
 }
@@ -261,7 +263,7 @@ static inline void no_fill() {
     wagn0.no_fill = true;
 }
 
-static inline void stroke(Color c) {
+static inline void stroke(pixel_t c) {
     wagn0.stroke_color = c;
     wagn0.no_stroke = false;
 }
@@ -278,7 +280,7 @@ static inline void stroke_weight(int w) {
 // DRAWING PRIMITIVES (declared, implemented below)
 // ============================================
 
-void background(Color c);
+void background(pixel_t c);
 void rect(int x, int y, int w, int h);
 void rect_mode(int mode);  // 0=CORNER, 1=CENTER
 void ellipse(int x, int y, int w, int h);
@@ -348,13 +350,13 @@ void key_released(int key);
 static int _wagn0_rect_mode = 0;  // 0=CORNER, 1=CENTER
 
 // Internal drawing functions
-static inline void _wagn0_set_pixel(int x, int y, Color c) {
+static inline void _wagn0_set_pixel(int x, int y, pixel_t c) {
     if (x < 0 || x >= wagn0.width || y < 0 || y >= wagn0.height) return;
-    uint16_t* pixels = (uint16_t*)wagn0.canvas_pixels;
-    pixels[y * wagn0.width + x] = color_to_rgb565(c);
+    pixel_t* pixels = (pixel_t*)wagn0.canvas_pixels;
+    pixels[y * wagn0.width + x] = c;
 }
 
-static void _wagn0_draw_filled_rect(int x, int y, int w, int h, Color c) {
+static void _wagn0_draw_filled_rect(int x, int y, int w, int h, pixel_t c) {
     for (int iy = y; iy < y + h; iy++) {
         for (int ix = x; ix < x + w; ix++) {
             _wagn0_set_pixel(ix, iy, c);
@@ -362,7 +364,7 @@ static void _wagn0_draw_filled_rect(int x, int y, int w, int h, Color c) {
     }
 }
 
-static void _wagn0_draw_rect_outline(int x, int y, int w, int h, Color c, int weight) {
+static void _wagn0_draw_rect_outline(int x, int y, int w, int h, pixel_t c, int weight) {
     for (int i = 0; i < weight; i++) {
         // Top
         for (int ix = x + i; ix < x + w - i; ix++) {
@@ -387,7 +389,7 @@ static void _wagn0_draw_rect_outline(int x, int y, int w, int h, Color c, int we
 // DRAWING PRIMITIVES IMPLEMENTATION
 // ============================================
 
-void background(Color c) {
+void background(pixel_t c) {
     _wagn0_draw_filled_rect(0, 0, wagn0.width, wagn0.height, c);
 }
 
@@ -429,7 +431,7 @@ void ellipse(int x, int y, int w, int h) {
     if (!wagn0.no_stroke) {
         // Draw outline
         for (int angle = 0; angle < 360; angle++) {
-            float rad = angle * WAGN0_PI / 180.0f;
+            float rad = angle * PI / 180.0f;
             int px = x + (int)(rx * cos(rad));
             int py = y + (int)(ry * sin(rad));
             _wagn0_set_pixel(px, py, wagn0.stroke_color);
@@ -607,7 +609,7 @@ void image(Wagn0Image img, int x, int y) {
             }
             
             if (c.a > 128) {  // Simple alpha test
-                _wagn0_set_pixel(px, py, c);
+                _wagn0_set_pixel(px, py, rgb(c.r, c.g, c.b));
             }
         }
     }
@@ -652,7 +654,7 @@ void image_scaled(Wagn0Image img, int x, int y, int w, int h) {
             }
             
             if (c.a > 128) {
-                _wagn0_set_pixel(px, py, c);
+                _wagn0_set_pixel(px, py, rgb(c.r, c.g, c.b));
             }
         }
     }
@@ -687,8 +689,8 @@ int wupdate() {
         wagn0.frame_count  = 0;
         wagn0.fps    = 0;
         wagn0.delta_time = 0.016f;
-        wagn0.fill_color   = WAGN0_WHITE;
-        wagn0.stroke_color = WAGN0_BLACK;
+        wagn0.fill_color   = WHITE;
+        wagn0.stroke_color = BLACK;
         wagn0.stroke_weight = 1;
         wagn0.no_fill   = false;
         wagn0.no_stroke = false;

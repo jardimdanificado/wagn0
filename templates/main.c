@@ -3,19 +3,13 @@
 void setup() {
 }
 
-void update() {
-}
-
 void draw() {
-    background(WAGN0_BLUE);
-
-    fill(WAGN0_RED);
+    background(BLUE);
+    fill(RED);
     rect(10, 10, 100, 80);
-
-    fill(WAGN0_GREEN);
+    fill(GREEN);
     ellipse(200, 100, 80, 80);
-
-    stroke(WAGN0_WHITE);
+    stroke(WHITE);
     stroke_weight(3);
     no_fill();
     rect(wagn0.mouse.x - 20, wagn0.mouse.y - 20, 40, 40);

@@ -98,19 +98,19 @@ void draw_player() {
     int screen_y = (int)player.y;
     
     // Body (blue rectangle)
-    draw_rect(screen_x, screen_y, player.width, player.height, W_RGB565(50, 100, 200));
+    draw_rect(screen_x, screen_y, player.width, player.height, rgb(50, 100, 200));
     
     // Eyes (white dots)
     if (player.facing_right) {
-        draw_rect(screen_x + 8, screen_y + 4, 3, 3, W_RGB565(255, 255, 255));
-        draw_rect(screen_x + 14, screen_y + 4, 3, 3, W_RGB565(255, 255, 255));
+        draw_rect(screen_x + 8, screen_y + 4, 3, 3, rgb(255, 255, 255));
+        draw_rect(screen_x + 14, screen_y + 4, 3, 3, rgb(255, 255, 255));
     } else {
-        draw_rect(screen_x + 4, screen_y + 4, 3, 3, W_RGB565(255, 255, 255));
-        draw_rect(screen_x + 10, screen_y + 4, 3, 3, W_RGB565(255, 255, 255));
+        draw_rect(screen_x + 4, screen_y + 4, 3, 3, rgb(255, 255, 255));
+        draw_rect(screen_x + 10, screen_y + 4, 3, 3, rgb(255, 255, 255));
     }
     
     // Hat (red rectangle on top)
-    draw_rect(screen_x + 2, screen_y - 4, 16, 4, W_RGB565(200, 50, 50));
+    draw_rect(screen_x + 2, screen_y - 4, 16, 4, rgb(200, 50, 50));
 }
 
 // Draw platforms
@@ -126,7 +126,7 @@ void draw_platforms() {
             // Add some texture to platforms
             if (platforms[i].h > 10) {
                 for (int x = 0; x < platforms[i].w; x += 8) {
-                    draw_rect(screen_x + x, screen_y + 2, 4, 2, W_RGB565(80, 60, 40));
+                    draw_rect(screen_x + x, screen_y + 2, 4, 2, rgb(80, 60, 40));
                 }
             }
         }
@@ -144,9 +144,9 @@ void draw_coins() {
         // Only draw if visible
         if (screen_x + 8 > 0 && screen_x < SCREEN_W) {
             // Coin body (yellow circle approximation)
-            draw_rect(screen_x, screen_y, 8, 8, W_RGB565(255, 215, 0));
-            draw_rect(screen_x + 1, screen_y + 1, 6, 6, W_RGB565(255, 255, 100));
-            draw_rect(screen_x + 2, screen_y + 2, 4, 4, W_RGB565(255, 255, 200));
+            draw_rect(screen_x, screen_y, 8, 8, rgb(255, 215, 0));
+            draw_rect(screen_x + 1, screen_y + 1, 6, 6, rgb(255, 255, 100));
+            draw_rect(screen_x + 2, screen_y + 2, 4, 4, rgb(255, 255, 200));
         }
     }
 }
@@ -175,7 +175,7 @@ void draw_background() {
         uint8_t r = 100 + (y * 50 / SCREEN_H);
         uint8_t g = 150 + (y * 50 / SCREEN_H);
         uint8_t b = 255;
-        uint16_t color = W_RGB565(r, g, b);
+        uint16_t color = rgb(r, g, b);
         for (int x = 0; x < SCREEN_W; x++) {
             pixels[y * SCREEN_W + x] = color;
         }
@@ -195,7 +195,7 @@ void draw_background() {
             int start_x = mx + (mw - width_at_y) / 2;
             for (int x = start_x; x < start_x + width_at_y; x++) {
                 if (x >= 0 && x < SCREEN_W && my + y >= 0 && my + y < SCREEN_H) {
-                    pixels[(my + y) * SCREEN_W + x] = W_RGB565(80, 120, 80);
+                    pixels[(my + y) * SCREEN_W + x] = rgb(80, 120, 80);
                 }
             }
         }
@@ -205,43 +205,43 @@ void draw_background() {
 // Draw HUD
 void draw_hud() {
     // Score background
-    draw_rect(5, 5, 80, 16, W_RGB565(0, 0, 0));
-    draw_rect(6, 6, 78, 14, W_RGB565(50, 50, 50));
+    draw_rect(5, 5, 80, 16, rgb(0, 0, 0));
+    draw_rect(6, 6, 78, 14, rgb(50, 50, 50));
     
     // Draw score as simple bars
     for (int i = 0; i < score && i < 10; i++) {
-        draw_rect(8 + i * 7, 8, 5, 10, W_RGB565(255, 215, 0));
+        draw_rect(8 + i * 7, 8, 5, 10, rgb(255, 215, 0));
     }
     
     // Draw frame counter (simple dots)
-    draw_rect(SCREEN_W - 60, 5, 55, 12, W_RGB565(0, 0, 0));
-    draw_rect(SCREEN_W - 59, 6, 53, 10, W_RGB565(50, 50, 50));
+    draw_rect(SCREEN_W - 60, 5, 55, 12, rgb(0, 0, 0));
+    draw_rect(SCREEN_W - 59, 6, 53, 10, rgb(50, 50, 50));
     
     for (int i = 0; i < 10; i++) {
         if (frame_count & (1 << i)) {
-            draw_rect(SCREEN_W - 55 + i * 5, 8, 3, 6, W_RGB565(0, 200, 0));
+            draw_rect(SCREEN_W - 55 + i * 5, 8, 3, 6, rgb(0, 200, 0));
         }
     }
     
     // Win message
     if (score >= num_coins) {
-        draw_rect(SCREEN_W/2 - 60, SCREEN_H/2 - 20, 120, 40, W_RGB565(0, 0, 0));
-        draw_rect(SCREEN_W/2 - 58, SCREEN_H/2 - 18, 116, 36, W_RGB565(0, 100, 0));
+        draw_rect(SCREEN_W/2 - 60, SCREEN_H/2 - 20, 120, 40, rgb(0, 0, 0));
+        draw_rect(SCREEN_W/2 - 58, SCREEN_H/2 - 18, 116, 36, rgb(0, 100, 0));
         
         // Simple "WIN" text using rectangles
         // W
-        draw_rect(SCREEN_W/2 - 40, SCREEN_H/2 - 10, 4, 20, W_RGB565(255, 255, 255));
-        draw_rect(SCREEN_W/2 - 32, SCREEN_H/2 - 10, 4, 20, W_RGB565(255, 255, 255));
-        draw_rect(SCREEN_W/2 - 36, SCREEN_H/2 + 5, 4, 5, W_RGB565(255, 255, 255));
+        draw_rect(SCREEN_W/2 - 40, SCREEN_H/2 - 10, 4, 20, rgb(255, 255, 255));
+        draw_rect(SCREEN_W/2 - 32, SCREEN_H/2 - 10, 4, 20, rgb(255, 255, 255));
+        draw_rect(SCREEN_W/2 - 36, SCREEN_H/2 + 5, 4, 5, rgb(255, 255, 255));
         
         // I
-        draw_rect(SCREEN_W/2 - 20, SCREEN_H/2 - 10, 4, 20, W_RGB565(255, 255, 255));
+        draw_rect(SCREEN_W/2 - 20, SCREEN_H/2 - 10, 4, 20, rgb(255, 255, 255));
         
         // N
-        draw_rect(SCREEN_W/2 - 10, SCREEN_H/2 - 10, 4, 20, W_RGB565(255, 255, 255));
-        draw_rect(SCREEN_W/2 - 2, SCREEN_H/2 - 10, 4, 20, W_RGB565(255, 255, 255));
-        draw_rect(SCREEN_W/2 + 2, SCREEN_H/2 - 5, 4, 5, W_RGB565(255, 255, 255));
-        draw_rect(SCREEN_W/2 + 6, SCREEN_H/2, 4, 5, W_RGB565(255, 255, 255));
+        draw_rect(SCREEN_W/2 - 10, SCREEN_H/2 - 10, 4, 20, rgb(255, 255, 255));
+        draw_rect(SCREEN_W/2 - 2, SCREEN_H/2 - 10, 4, 20, rgb(255, 255, 255));
+        draw_rect(SCREEN_W/2 + 2, SCREEN_H/2 - 5, 4, 5, rgb(255, 255, 255));
+        draw_rect(SCREEN_W/2 + 6, SCREEN_H/2, 4, 5, rgb(255, 255, 255));
     }
 }
 
@@ -275,19 +275,19 @@ void setup() {
     
     // Create platforms
     // Ground
-    platforms[num_platforms++] = (Platform){0, 200, 1000, 40, W_RGB565(100, 70, 50)};
+    platforms[num_platforms++] = (Platform){0, 200, 1000, 40, rgb(100, 70, 50)};
     
     // Floating platforms
-    platforms[num_platforms++] = (Platform){100, 160, 80, 20, W_RGB565(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){250, 130, 100, 20, W_RGB565(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){400, 100, 80, 20, W_RGB565(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){550, 140, 120, 20, W_RGB565(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){700, 80, 80, 20, W_RGB565(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){850, 120, 100, 20, W_RGB565(80, 160, 80)};
+    platforms[num_platforms++] = (Platform){100, 160, 80, 20, rgb(80, 160, 80)};
+    platforms[num_platforms++] = (Platform){250, 130, 100, 20, rgb(80, 160, 80)};
+    platforms[num_platforms++] = (Platform){400, 100, 80, 20, rgb(80, 160, 80)};
+    platforms[num_platforms++] = (Platform){550, 140, 120, 20, rgb(80, 160, 80)};
+    platforms[num_platforms++] = (Platform){700, 80, 80, 20, rgb(80, 160, 80)};
+    platforms[num_platforms++] = (Platform){850, 120, 100, 20, rgb(80, 160, 80)};
     
     // Walls
-    platforms[num_platforms++] = (Platform){0, 0, 20, 200, W_RGB565(120, 100, 80)};
-    platforms[num_platforms++] = (Platform){980, 0, 20, 200, W_RGB565(120, 100, 80)};
+    platforms[num_platforms++] = (Platform){0, 0, 20, 200, rgb(120, 100, 80)};
+    platforms[num_platforms++] = (Platform){980, 0, 20, 200, rgb(120, 100, 80)};
     
     // Create coins
     coins[num_coins++] = (Coin){150, 140, 0, 0.0f};
@@ -409,7 +409,7 @@ void draw() {
                            (int)coin_x, (int)coin_y, 8, 8)) {
             coins[i].collected = 1;
             score++;
-            create_particles(coin_x, coin_y, W_RGB565(255, 215, 0), 10);
+            create_particles(coin_x, coin_y, rgb(255, 215, 0), 10);
         }
     }
     
@@ -443,9 +443,9 @@ void draw() {
     draw_hud();
     
     // Draw mouse cursor
-    draw_rect(mouse_x - 2, mouse_y - 2, 5, 5, W_RGB565(255, 255, 0));
+    draw_rect(mouse_x - 2, mouse_y - 2, 5, 5, rgb(255, 255, 0));
     if (mouse_clicked) {
-        draw_rect(mouse_x - 4, mouse_y - 4, 9, 9, W_RGB565(255, 0, 0));
+        draw_rect(mouse_x - 4, mouse_y - 4, 9, 9, rgb(255, 0, 0));
     }
     
     
