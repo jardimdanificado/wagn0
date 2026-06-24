@@ -1,0 +1,6 @@
+*.wasm
+*.o
+wagno
+wagnostic
+wagnostic-*
+examples/audio_example/audio_data.h
