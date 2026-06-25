@@ -1,63 +1,52 @@
 #include "wagn0.h"
-#include "audio_data.h"
-
-static uint16_t* _fb;
-static uint8_t* _audio_buf;
 
 void setup() {
-    w_setup("Wagnostic - Audio Player", 320, 240, 16, 4, 0);
-    _fb = (uint16_t*)w_vram;
-    
-    w_audio_size = music_size;
-    w_audio_sample_rate = 44100;
-    w_audio_bpp = 2;
-    w_audio_channels = 2;
-    w_audio_write = 0;
-    w_audio_read = 0;
-
-    _audio_buf = (uint8_t*)w_audio_buffer;
+    w_setup("WagnO - Audio Synth", 320, 240, 16, 2);
 }
 
-void fill_audio() {
-    uint32_t r = w_audio_read;
-    uint32_t w = w_audio_write;
-    uint32_t size = w_audio_size;
-
-    // Calculate occupied space
-    uint32_t occupied;
-    if (w >= r) occupied = w - r;
-    else occupied = size - r + w;
-
-    // We want to keep the buffer reasonably full, but not overflow
-    // At 44.1kHz stereo 16-bit, we need ~176KB per second.
-    // Let's keep about 0.5s of audio ahead (88KB)
-    uint32_t target_buffer = 88200; 
-    if (occupied >= target_buffer) return;
-
-    uint32_t to_write = target_buffer - occupied;
-    if (to_write > 16384) to_write = 16384; // write in chunks
-
-    for (uint32_t i = 0; i < to_write; i++) {
-        _audio_buf[w] = music_data[w];
-        w = (w + 1) % size;
+static int active_count(void) {
+    int n = 0;
+    for (int i = 0; i < WAGN0_MAX_TONES; i++) {
+        if (_wagn0_tones[i].active) n++;
     }
-    w_audio_write = w;
+    return n;
 }
 
 void draw() {
-    static uint32_t last_tick = 0;
-    static uint16_t color = 0;
-    
-    uint32_t now = w_ticks;
-    if (now - last_tick > 1000) {
-        color = (uint16_t)((w_audio_write >> 8) & 0xFFFF);
-        last_tick = now;
-    }
+    background(BLACK);
 
-    for (int i = 0; i < 320 * 240; i++) {
-        _fb[i] = color;
-    }
+    fill(WHITE);
+    text("press 1-5 to play", 10, 10);
+    text("1=A4  2=C5  3=E5  4=G5  5=noise", 10, 30);
 
-    fill_audio();
-    
+    char buf[16];
+    int n = active_count();
+    int i = 0;
+    if (n == 0) { buf[i++] = '0'; }
+    else {
+        int tmp = n;
+        while (tmp > 0) { buf[i++] = '0' + (tmp % 10); tmp /= 10; }
+        for (int j = 0; j < i/2; j++) {
+            char t = buf[j]; buf[j] = buf[i-1-j]; buf[i-1-j] = t;
+        }
+    }
+    buf[i] = 0;
+
+    fill(GREEN);
+    text("active:", 10, 60);
+    fill(WHITE);
+    text(buf, 80, 60);
 }
+
+void key_pressed(int key) {
+    if (key == 0x1E) play_tone(440.0f, 0.5f, 0.4f);  // 1: A4
+    if (key == 0x1F) play_tone(523.0f, 0.5f, 0.4f);  // 2: C5
+    if (key == 0x20) play_tone(659.0f, 0.5f, 0.4f);  // 3: E5
+    if (key == 0x21) play_tone(784.0f, 0.5f, 0.4f);  // 4: G5
+    if (key == 0x22) play_noise(0.3f, 0.3f);          // 5: noise burst
+}
+
+void update(void) {}
+void mouse_pressed(void) {}
+void mouse_released(void) {}
+void key_released(int key) { (void)key; }

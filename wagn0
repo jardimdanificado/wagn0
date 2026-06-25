@@ -6,6 +6,7 @@ WAGNO_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATES="$WAGNO_DIR/templates"
 INCLUDE_DIR="-I${WAGNO_DIR}/include"
 HOST_BINARY="${WAGNO_DIR}/wagnostic"
+RUNNER="${WAGN0_RUNNER:-}"
 
 RED='\033[31m'
 GREEN='\033[32m'
@@ -48,12 +49,19 @@ load_config() {
 # ── Host finder ──────────────────────────────────────────────────────────────
 
 find_host() {
-    local names=("$HOST_BINARY" "wagnostic" "wagnostic-wasmtime" "wagnostic-sm")
+    local names
+    case "$RUNNER" in
+        sm|spidermonkey) names=("wagnostic-sm" "$HOST_BINARY") ;;
+        native|wasm3|"") names=("$HOST_BINARY" "wagnostic" "wagnostic-sm") ;;
+        *)
+            err "Unknown runner: $RUNNER (use 'native' or 'sm')"
+            return 1
+            ;;
+    esac
     for name in "${names[@]}"; do
         command -v "$name" &>/dev/null && { echo "$name"; return 0; }
         [ -x "$name" ] && { echo "$name"; return 0; }
     done
-    [ -x "$HOST_BINARY" ] && echo "$HOST_BINARY" && return 0
     return 1
 }
 
@@ -168,6 +176,14 @@ cmd_build() {
 }
 
 cmd_run() {
+    # Parse --runner flag
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --runner) RUNNER="$2"; shift 2 ;;
+            --runner=*) RUNNER="${1#*=}"; shift ;;
+            *) break ;;
+        esac
+    done
     local file="${1:-}"
     if [ -z "$file" ]; then
         load_config
@@ -179,6 +195,14 @@ cmd_run() {
 }
 
 cmd_dev() {
+    # Parse --runner flag
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --runner) RUNNER="$2"; shift 2 ;;
+            --runner=*) RUNNER="${1#*=}"; shift ;;
+            *) break ;;
+        esac
+    done
     load_config
     local target="${NAME}.wasm"
     local host_pid=0

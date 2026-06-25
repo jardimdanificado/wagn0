@@ -94,12 +94,14 @@ extern uint32_t w_audio_channels;
 extern uint32_t w_audio_write;
 extern uint32_t w_audio_read;
 extern uint8_t w_audio_buffer[];
+extern uint32_t w_audio_underrun;
+extern uint32_t w_audio_overrun;
 
 // ============================================
 // HELPER FUNCTIONS (inline)
 // ============================================
 
-static inline void w_setup(const char* title, int width, int height, int bpp, int scale, int signals_unused) {
+static inline void w_setup(const char* title, int width, int height, int bpp, int scale) {
     w_width = width;
     w_height = height;
     w_bpp = bpp;
@@ -174,11 +176,13 @@ uint32_t w_ticks = 0;
 // --- Audio ---
 uint32_t w_audio_size = 0;
 uint32_t w_audio_sample_rate = 44100;
-uint32_t w_audio_bpp = 16;
+uint32_t w_audio_bpp = 2;
 uint32_t w_audio_channels = 1;
 uint32_t w_audio_write = 0;
 uint32_t w_audio_read = 0;
-uint8_t w_audio_buffer[8192];
+uint32_t w_audio_underrun = 0;
+uint32_t w_audio_overrun = 0;
+uint8_t w_audio_buffer[16384];
 
 #endif // WAGNOSTIC_IMPLEMENTATION
 

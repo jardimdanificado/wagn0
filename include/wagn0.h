@@ -19,6 +19,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// Audio API below needs w_audio_* globals, so include wagnostic.h here.
+#define WAGNOSTIC_IMPLEMENTATION
+#include "wagnostic.h"
+
 // ============================================
 // BIT DEPTH CONFIGURATION
 // ============================================
@@ -321,6 +325,135 @@ void load_image(Wagn0Image* img, const void* data, int width, int height, int bp
 
 void play_tone(float freq, float duration, float volume);
 void play_noise(float duration, float volume);
+void stop_all_sounds(void);
+
+// Default fill_audio implementation — generates PCM from the tone
+// queue into the Wagnostic audio ring buffer. Weak so user code can
+// override (e.g. to stream embedded PCM data instead of synthesizing).
+__attribute__((weak)) void fill_audio(void);
+
+#define WAGN0_MAX_TONES 8
+#define WAGN0_AUDIO_SAMPLE_RATE 22050
+#define WAGN0_AUDIO_FADE_SAMPLES 220  // 10ms at 22050Hz
+
+typedef struct {
+    uint8_t active;
+    float freq;            // 0 = white noise
+    float volume;          // 0.0..1.0
+    uint32_t start_sample; // global sample count when triggered
+    uint32_t duration_samples;
+} Wagn0Tone;
+
+static Wagn0Tone _wagn0_tones[WAGN0_MAX_TONES];
+static uint32_t _wagn0_audio_sample = 0;
+static uint8_t  _wagn0_audio_init = 0;
+static int16_t  _wagn0_sin_lut[256];
+
+static void _wagn0_init_sin_lut(void) {
+    for (int i = 0; i < 256; i++) {
+        _wagn0_sin_lut[i] = (int16_t)(sin(i * TWO_PI / 256.0f) * 32767.0f);
+    }
+}
+
+void play_tone(float freq, float duration, float volume) {
+    for (int i = 0; i < WAGN0_MAX_TONES; i++) {
+        if (!_wagn0_tones[i].active) {
+            _wagn0_tones[i].active = 1;
+            _wagn0_tones[i].freq = freq;
+            _wagn0_tones[i].volume = volume;
+            _wagn0_tones[i].start_sample = _wagn0_audio_sample;
+            _wagn0_tones[i].duration_samples =
+                (uint32_t)(duration * (float)WAGN0_AUDIO_SAMPLE_RATE);
+            return;
+        }
+    }
+}
+
+void play_noise(float duration, float volume) {
+    play_tone(0.0f, duration, volume);
+}
+
+void stop_all_sounds(void) {
+    for (int i = 0; i < WAGN0_MAX_TONES; i++) {
+        _wagn0_tones[i].active = 0;
+    }
+}
+
+void fill_audio(void) {
+    if (!_wagn0_audio_init) {
+        _wagn0_init_sin_lut();
+        w_audio_size         = sizeof(w_audio_buffer);
+        w_audio_sample_rate  = WAGN0_AUDIO_SAMPLE_RATE;
+        w_audio_bpp          = 2;        // s16
+        w_audio_channels     = 1;        // mono
+        w_audio_write        = 0;
+        w_audio_read         = 0;
+        _wagn0_audio_init    = 1;
+    }
+
+    uint32_t w    = w_audio_write;
+    uint32_t r    = w_audio_read;
+    uint32_t size = w_audio_size;
+
+    // Usable bytes = size - 1 (full vs empty distinction)
+    uint32_t occupied = (w >= r) ? (w - r) : (size - r + w);
+    if (occupied >= size - 1) return;
+
+    // ~10ms of audio per fill_audio call
+    uint32_t bytes_to_write = WAGN0_AUDIO_FADE_SAMPLES * 2;  // s16
+    if (bytes_to_write > (size - 1 - occupied)) {
+        bytes_to_write = size - 1 - occupied;
+    }
+    if (bytes_to_write < 2) return;
+    uint32_t samples = bytes_to_write / 2;
+
+    int16_t* buf = (int16_t*)w_audio_buffer;
+    static uint32_t noise_seed = 0x12345;
+
+    for (uint32_t i = 0; i < samples; i++) {
+        int32_t mix = 0;
+        uint32_t gs = _wagn0_audio_sample + i;
+
+        for (int t = 0; t < WAGN0_MAX_TONES; t++) {
+            if (!_wagn0_tones[t].active) continue;
+            uint32_t elapsed = gs - _wagn0_tones[t].start_sample;
+            if (elapsed >= _wagn0_tones[t].duration_samples) {
+                _wagn0_tones[t].active = 0;
+                continue;
+            }
+
+            float s;
+            if (_wagn0_tones[t].freq == 0.0f) {
+                noise_seed = noise_seed * 1103515245u + 12345u;
+                s = (int16_t)(noise_seed >> 16) / 32768.0f;
+            } else {
+                float phase = _wagn0_tones[t].freq * (float)gs
+                              / (float)WAGN0_AUDIO_SAMPLE_RATE;
+                uint8_t idx = (uint8_t)(phase * 256.0f);
+                s = _wagn0_sin_lut[idx] / 32768.0f;
+            }
+
+            // 10ms fade in/out to avoid pops
+            float fade = 1.0f;
+            uint32_t dur = _wagn0_tones[t].duration_samples;
+            if (elapsed < WAGN0_AUDIO_FADE_SAMPLES) {
+                fade = (float)elapsed / (float)WAGN0_AUDIO_FADE_SAMPLES;
+            } else if (elapsed > dur - WAGN0_AUDIO_FADE_SAMPLES) {
+                fade = (float)(dur - elapsed) / (float)WAGN0_AUDIO_FADE_SAMPLES;
+            }
+
+            mix += (int32_t)(s * _wagn0_tones[t].volume * fade * 32767.0f);
+        }
+
+        if (mix >  32767) mix =  32767;
+        if (mix < -32768) mix = -32768;
+        buf[w / 2] = (int16_t)mix;
+        w = (w + 2) % size;
+    }
+
+    w_audio_write = w;
+    _wagn0_audio_sample += samples;
+}
 
 // ============================================
 // USER FUNCTIONS (implemented by user)
@@ -334,21 +467,10 @@ void mouse_released(void);
 void key_pressed(int key);
 void key_released(int key);
 
-// Weak defaults for optional callbacks — user definitions override these
-__attribute__((weak)) void update() {}
-__attribute__((weak)) void mouse_pressed() {}
-__attribute__((weak)) void mouse_released() {}
-__attribute__((weak)) void key_pressed(int key) {}
-__attribute__((weak)) void key_released(int key) {}
-
 // ============================================
 // IMPLEMENTATION
 // ============================================
 
-#ifndef WAGNOSTIC_IMPLEMENTATION
-#define WAGNOSTIC_IMPLEMENTATION
-#endif
-#include "wagnostic.h"
 #define OLIVEC_IMPLEMENTATION
 #include "olive.c"
 
@@ -532,28 +654,24 @@ void arc(int x, int y, int w, int h, float start, float stop) {
 // TEXT FUNCTIONS IMPLEMENTATION
 // ============================================
 
-void text(const char* text, int x, int y) {
-    // Simple bitmap font rendering
-    // For now, just draw a placeholder rectangle for each character
-    int char_width = 6;
-    int char_height = 8;
-    
-    for (int i = 0; text[i] != '\0'; i++) {
-        int cx = x + i * char_width;
-        if (!wagn0.no_fill) {
-            _wagn0_draw_filled_rect(cx, y, char_width - 1, char_height - 1, wagn0.fill_color);
-        }
-    }
+static int _wagn0_text_size = 1;
+
+void text(const char* text_str, int x, int y) {
+    Olivec_Canvas oc = olivec_canvas(
+        wagn0.canvas_pixels, wagn0.width, wagn0.height,
+        wagn0.width, WAGN0_BPP);
+    olivec_text(oc, text_str, x, y, olivec_default_font,
+                (size_t)_wagn0_text_size, (uint32_t)wagn0.fill_color);
 }
 
 void text_size(int size) {
-    // Placeholder - would need actual font support
+    _wagn0_text_size = size > 0 ? size : 1;
 }
 
-int text_width(const char* text) {
+int text_width(const char* text_str) {
     int len = 0;
-    while (text[len]) len++;
-    return len * 6;  // assuming 6px per character
+    while (text_str[len]) len++;
+    return len * (int)olivec_default_font.width * _wagn0_text_size;
 }
 
 // ============================================
@@ -613,7 +731,7 @@ void image(Wagn0Image img, int x, int y) {
                 c.a = 255;
             }
             
-            if (c.a > 128) {  // Simple alpha test
+            if (img.bpp == 32 ? c.a > 128 : true) {
                 _wagn0_set_pixel(px, py, rgb(c.r, c.g, c.b));
             }
         }
@@ -658,24 +776,11 @@ void image_scaled(Wagn0Image img, int x, int y, int w, int h) {
                 c.a = 255;
             }
             
-            if (c.a > 128) {
+            if (img.bpp == 32 ? c.a > 128 : true) {
                 _wagn0_set_pixel(px, py, rgb(c.r, c.g, c.b));
             }
         }
     }
-}
-
-// ============================================
-// AUDIO FUNCTIONS (placeholders)
-// ============================================
-
-void play_tone(float freq, float duration, float volume) {
-    // Would need to write to audio buffer
-    // Placeholder for now
-}
-
-void play_noise(float duration, float volume) {
-    // Placeholder
 }
 
 // ============================================
@@ -705,7 +810,7 @@ int wupdate() {
         wagn0.mouse_released = false;
         wagn0.mouse_down     = false;
         wagn0.canvas_pixels = w_vram;
-        w_setup("WagnO Game", wagn0.width, wagn0.height, wagn0.bpp, wagn0.scale, 0);
+        w_setup("WagnO Game", wagn0.width, wagn0.height, wagn0.bpp, wagn0.scale);
         setup();
     }
     // Update time
@@ -746,16 +851,19 @@ int wupdate() {
     
     // Call user draw
     draw();
-    
+
+    // Fill audio buffer
+    fill_audio();
+
     // Handle user callbacks
     if (wagn0.mouse_pressed) mouse_pressed();
     if (wagn0.mouse_released) mouse_released();
-    
+
     for (int i = 0; i < 256; i++) {
         if (wagn0.keys_pressed[i]) key_pressed(i);
         if (wagn0.keys_released[i]) key_released(i);
     }
-    
+
     w_redraw();
     return 1;
 }

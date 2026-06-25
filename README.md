@@ -53,12 +53,19 @@ triangle(x1,y1,x2,y2,x3,y3);
 quad(x1,y1,x2,y2,x3,y3,x4,y4);
 arc(x, y, w, h, start_angle, stop_angle);
 
-// Text (bitmap placeholder)
+// Text (bitmap font from olive.c)
 text(str, x, y);  text_size(int);  text_width(str);
 
-// Images
+// Images (alpha test applies only to 32bpp)
 Wagn0Image img = create_image_from_data(data, w, h, bpp);
 image(img, x, y);  image_scaled(img, x, y, w, h);
+
+// Audio (default synth: sine tones + white noise, mixed into a
+// 22050Hz mono s16 ring buffer that the host drains)
+play_tone(freq, duration, volume);  // freq > 0
+play_noise(duration, volume);       // white noise burst
+stop_all_sounds();
+__attribute__((weak)) void fill_audio(void);  // override to stream PCM
 
 // Math
 float map(v, s1, s2, t1, t2);  float constrain(v, min, max);
@@ -88,6 +95,10 @@ void key_pressed(int key);
 void key_released(int key);
 ```
 
+All callbacks must be defined in the ROM (wagn0 does not provide
+weak defaults — missing definitions become unresolved imports that
+prevent the wasm from loading).
+
 ## Quick Start
 
 ```bash
@@ -112,5 +123,8 @@ tools/      asset conversion utilities (img2c, audio2pcm)
 |---------|-------------|
 | `./wagn0 new <name>` | Create a new project |
 | `./wagn0 build` | Compile C → WASM |
-| `./wagn0 run` | Run with wagnostic host |
-| `./wagn0 dev` | Watch, rebuild, and run |
+| `./wagn0 run [--runner native\|sm]` | Run with wagnostic host |
+| `./wagn0 dev [--runner native\|sm]` | Watch, rebuild, and run |
+
+Set `WAGN0_RUNNER=sm` in the environment to default to the SpiderMonkey
+host instead of the wasm3 native host.
