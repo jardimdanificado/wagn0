@@ -41,7 +41,7 @@ load_config() {
     tmp=$(grep -o '"scale"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && SCALE="${tmp#*:}" && SCALE="${SCALE# }"
     tmp=$(grep -o '"bpp"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && BPP="${tmp#*:}" && BPP="${BPP# }"
     tmp=$(grep -o '"memory"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && MEMORY="${tmp#*:}" && MEMORY="${MEMORY# }"
-    SRC=$(sed -n '/"src"[[:space:]]*:/,/\]/p' wagn0.json 2>/dev/null | grep '"' | sed 's/.*"\(.*\)".*/\1/' | tr '\n' ' ')
+    SRC=$(grep -oP '"[^"]*\.c"' wagn0.json 2>/dev/null | sed 's/"//g' | tr '\n' ' ')
     [ -n "$NAME" ] || NAME="$(basename "$(pwd)")"
 }
 

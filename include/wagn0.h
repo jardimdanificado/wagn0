@@ -323,18 +323,23 @@ void play_tone(float freq, float duration, float volume);
 void play_noise(float duration, float volume);
 
 // ============================================
-// USER FUNCTIONS (must be implemented by user)
+// USER FUNCTIONS (implemented by user)
 // ============================================
 
 void setup(void);
 void update(void);
 void draw(void);
-
-// Optional user functions
 void mouse_pressed(void);
 void mouse_released(void);
 void key_pressed(int key);
 void key_released(int key);
+
+// Weak defaults for optional callbacks — user definitions override these
+__attribute__((weak)) void update() {}
+__attribute__((weak)) void mouse_pressed() {}
+__attribute__((weak)) void mouse_released() {}
+__attribute__((weak)) void key_pressed(int key) {}
+__attribute__((weak)) void key_released(int key) {}
 
 // ============================================
 // IMPLEMENTATION
