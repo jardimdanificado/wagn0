@@ -8,7 +8,7 @@ static int pos_x = 100, pos_y = 70;
 static int scale_w = 120, scale_h = 100;
 
 void setup() {
-    w_setup("Wagnostic SDK - Images", 320, 240, 16, 4, 8);
+    w_setup("Wagnostic SDK - Images", 320, 240, 16, 4);
     _oc = olivec_canvas(w_vram, 320, 240, 320, 16);
     _img = olivec_canvas((uint16_t*)image_pixels, image_width, image_height, image_width, 16);
 }

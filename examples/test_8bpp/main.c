@@ -6,7 +6,7 @@ static Olivec_Canvas _oc;
 static Olivec_Canvas _img;
 
 void setup() {
-    w_setup("Wagnostic Test - 8bpp", 320, 240, 8, 2, 4);
+    w_setup("Wagnostic Test - 8bpp", 320, 240, 8, 2);
     _oc = olivec_canvas(w_vram, 320, 240, 320, 8);
     _img = olivec_canvas((uint8_t*)image_pixels, image_width, image_height, image_width, 8);
 }

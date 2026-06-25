@@ -24,7 +24,7 @@ static void int_to_str(int n, char* str) {
 }
 
 void setup() {
-    w_setup("Wagnostic SDK - Draw", 320, 240, 16, 4, 8);
+    w_setup("Wagnostic SDK - Draw", 320, 240, 16, 4);
     
     _oc = olivec_canvas(w_vram, 320, 240, 320, 16);
     _img_sprite = olivec_canvas((uint16_t*)image_pixels, image_width, image_height, image_width, 16);

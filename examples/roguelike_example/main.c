@@ -69,7 +69,7 @@ static void generate_map() {
 static uint32_t prev_buttons = 0;
 
 void setup() {
-    w_setup("Wagnostic SDK - Roguelike", 320, 240, 16, 4, 8);
+    w_setup("Wagnostic SDK - Roguelike", 320, 240, 16, 4);
     _oc = olivec_canvas(w_vram, 320, 240, 320, 16);
     _sheet = olivec_canvas((uint16_t*)image_raw, image_width, image_height, image_width, 16);
     generate_map();

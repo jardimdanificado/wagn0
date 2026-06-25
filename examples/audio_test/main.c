@@ -8,7 +8,7 @@ static float phase = 0;
 static uint32_t frame_count = 0;
 
 void setup() {
-    w_setup("Wagnostic - Audio Test", 320, 240, 16, 2, 8);
+    w_setup("Wagnostic - Audio Test", 320, 240, 16, 2);
     _fb = (uint16_t*)w_vram;
     
     w_audio_size = 16384;

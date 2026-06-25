@@ -11,6 +11,7 @@
 //    Esc          = clear selection
 // ============================================================
 
+#define WAGN0_CUSTOM_FILL_AUDIO
 #include "wagn0.h"
 
 static uint16_t* _fb;
@@ -286,7 +287,7 @@ static void advance_row() {
 }
 
 // ---- Fill audio buffer ----
-static void fill_audio() {
+void fill_audio() {
     uint8_t* audio_buf = (uint8_t*)w_audio_buffer;
 
     uint32_t r = w_audio_read;

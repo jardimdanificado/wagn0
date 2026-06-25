@@ -379,7 +379,8 @@ void stop_all_sounds(void) {
     }
 }
 
-void fill_audio(void) {
+#ifndef WAGN0_CUSTOM_FILL_AUDIO
+__attribute__((weak)) void fill_audio(void) {
     if (!_wagn0_audio_init) {
         _wagn0_init_sin_lut();
         w_audio_size         = sizeof(w_audio_buffer);
@@ -454,6 +455,7 @@ void fill_audio(void) {
     w_audio_write = w;
     _wagn0_audio_sample += samples;
 }
+#endif // !WAGN0_CUSTOM_FILL_AUDIO
 
 // ============================================
 // USER FUNCTIONS (implemented by user)
@@ -473,6 +475,18 @@ void key_released(int key);
 
 #define OLIVEC_IMPLEMENTATION
 #include "olive.c"
+
+// Weak no-op defaults for user callbacks. Prevents the compiler from
+// emitting `env.update` etc. as unresolved imports (the native runner
+// can't satisfy them). Define WAGN0_NO_DEFAULT_CALLBACKS before
+// `#include "wagn0.h"` to opt out when providing your own.
+#ifndef WAGN0_NO_DEFAULT_CALLBACKS
+__attribute__((weak)) void update(void) {}
+__attribute__((weak)) void mouse_pressed(void) {}
+__attribute__((weak)) void mouse_released(void) {}
+__attribute__((weak)) void key_pressed(int key) { (void)key; }
+__attribute__((weak)) void key_released(int key) { (void)key; }
+#endif
 
 static int _wagn0_rect_mode = 0;  // 0=CORNER, 1=CENTER
 

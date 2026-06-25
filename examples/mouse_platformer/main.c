@@ -260,7 +260,7 @@ void create_particles(float x, float y, uint16_t color, int count) {
 
 // Initialize game
 void setup() {
-    w_setup("Mouse Platformer", SCREEN_W, SCREEN_H, 16, 4, 0);
+    w_setup("Mouse Platformer", SCREEN_W, SCREEN_H, 16, 4);
     _oc = olivec_canvas(w_vram, SCREEN_W, SCREEN_H, SCREEN_W, 16);
     
     // Initialize player
