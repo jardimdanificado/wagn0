@@ -5,5 +5,5 @@
     "scale": 4,
     "bpp": 16,
     "memory": 8388608,
-    "src": ["main.c", "olive.c"]
+    "src": ["main.c"]
 }

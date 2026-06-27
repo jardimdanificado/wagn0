@@ -1,11 +1,10 @@
 #include "wagn0.h"
-#include "image.rgb565.h"
 
 static Wagn0Image img;
 
 void setup() {
     w_setup("16BPP Test", 320, 240, 16, 2);
-    img = create_image_from_data(image_pixels, image_width, image_height, 16);
+    img = png_decode(assets_test_card_png_data, sizeof(assets_test_card_png_data));
 }
 
 void draw() {

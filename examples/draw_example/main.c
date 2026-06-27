@@ -1,63 +1,53 @@
 #include "wagn0.h"
 
-#include "image.rgb565.h"
-
-extern uint32_t get_ticks();
-
-static Olivec_Canvas _oc;
-static Olivec_Canvas _img_sprite;
+static Wagn0Image sheet;
+static int sprite_w = 24, sprite_h = 24;
 
 typedef struct { float x, y, vx, vy; int w, h; } Sprite;
 #define SPRITE_COUNT 200
-static Sprite _sprites[SPRITE_COUNT];
-static uint32_t _last_time = 0;
-static int _frame_count = 0;
-static int _fps = 0;
-static char _fps_text[32] = "fps: --";
-static uint32_t _seed = 12345;
-static uint32_t rand_u32() { _seed = _seed * 1103515245 + 12345; return (_seed / 65536) % 32768; }
-
-static void int_to_str(int n, char* str) {
-    if (n == 0) { str[0] = '0'; str[1] = '\0'; return; }
-    int i = 0; while (n > 0) { str[i++] = (n % 10) + '0'; n /= 10; } str[i] = '\0';
-    for (int j = 0; j < i / 2; j++) { char t = str[j]; str[j] = str[i - 1 - j]; str[i - 1 - j] = t; }
-}
+static Sprite sprites[SPRITE_COUNT];
+static uint32_t last_time = 0;
+static int frame_count = 0, fps = 0;
+static char fps_text[16] = "fps: --";
+static uint32_t seed = 12345;
+static uint32_t rnd() { seed = seed * 1103515245 + 12345; return (seed / 65536) % 32768; }
 
 void setup() {
-    w_setup("Wagnostic SDK - Draw", 320, 240, 16, 4);
-    
-    _oc = olivec_canvas(w_vram, 320, 240, 320, 16);
-    _img_sprite = olivec_canvas((uint16_t*)image_pixels, image_width, image_height, image_width, 16);
+    w_setup("WagnO - Draw", 320, 240, 16, 4);
+    sheet = png_decode(assets_sprite_png_data, sizeof(assets_sprite_png_data));
 
     for (int i = 0; i < SPRITE_COUNT; i++) {
-        _sprites[i].w = 24; _sprites[i].h = 24;
-        _sprites[i].x = (float)(rand_u32() % (320 - 24)); _sprites[i].y = (float)(rand_u32() % (240 - 24));
-        _sprites[i].vx = (float)((rand_u32() % 4) + 1); _sprites[i].vy = (float)((rand_u32() % 4) + 1);
-        if (rand_u32() % 2) _sprites[i].vx *= -1; if (rand_u32() % 2) _sprites[i].vy *= -1;
+        sprites[i].w = sprite_w; sprites[i].h = sprite_h;
+        sprites[i].x = (float)(rnd() % (320 - sprite_w));
+        sprites[i].y = (float)(rnd() % (240 - sprite_h));
+        sprites[i].vx = (float)((rnd() % 4) + 1) * (rnd() % 2 ? -1 : 1);
+        sprites[i].vy = (float)((rnd() % 4) + 1) * (rnd() % 2 ? -1 : 1);
     }
-    _last_time = w_ticks;
+    last_time = w_ticks;
 }
 
 void draw() {
-    uint32_t now = w_ticks; _frame_count++;
-    if (now - _last_time >= 1000) {
-        _fps = _frame_count; _frame_count = 0; _last_time = now;
-        char num[16]; int_to_str(_fps, num);
-        _fps_text[0] = 'f'; _fps_text[1] = 'p'; _fps_text[2] = 's'; _fps_text[3] = ':'; _fps_text[4] = ' ';
-        int j = 0; while(num[j]) { _fps_text[5+j] = num[j]; j++; } _fps_text[5+j] = '\0';
+    uint32_t now = w_ticks; frame_count++;
+    if (now - last_time >= 1000) {
+        fps = frame_count; frame_count = 0; last_time = now;
+        int n = fps;
+        for (int i = 0; i < 5; i++) fps_text[i] = "fps: "[i];
+        fps_text[5] = '0' + (n / 100); if (fps_text[5] == '0') fps_text[5] = ' ';
+        fps_text[6] = '0' + ((n / 10) % 10); if (fps_text[5] == ' ' && fps_text[6] == '0') fps_text[6] = ' ';
+        fps_text[7] = '0' + (n % 10); if (fps_text[6] == ' ') fps_text[7] = ' ';
+        fps_text[8] = 0;
     }
 
-    olivec_fill(_oc, 0);
+    background(BLACK);
+    if (!sheet.pixels) return;
 
     for (int i = 0; i < SPRITE_COUNT; i++) {
-        _sprites[i].x += _sprites[i].vx; _sprites[i].y += _sprites[i].vy;
-        if (_sprites[i].x <= 0 || _sprites[i].x + _sprites[i].w >= 320) _sprites[i].vx *= -1;
-        if (_sprites[i].y <= 0 || _sprites[i].y + _sprites[i].h >= 240) _sprites[i].vy *= -1;
-        olivec_sprite_copy(_oc, (int)_sprites[i].x, (int)_sprites[i].y, _sprites[i].w, _sprites[i].h, _img_sprite);
+        sprites[i].x += sprites[i].vx; sprites[i].y += sprites[i].vy;
+        if (sprites[i].x <= 0 || sprites[i].x + sprites[i].w >= 320) sprites[i].vx *= -1;
+        if (sprites[i].y <= 0 || sprites[i].y + sprites[i].h >= 240) sprites[i].vy *= -1;
+        image_scaled(sheet, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h);
     }
 
-    olivec_rect(_oc, 5, 220, 80, 15, rgb(0, 0, 0));
-    olivec_text(_oc, _fps_text, 10, 222, olivec_default_font, 1, rgb(255, 255, 255));
-    
-    
+    fill(BLACK); no_stroke(); rect(5, 220, 80, 16);
+    fill(WHITE); text(fps_text, 10, 222);
 }

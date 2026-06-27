@@ -1,11 +1,11 @@
+#define WAGN0_BPP 32
 #include "wagn0.h"
-#include "image.rgba.h"
 
 static Wagn0Image img;
 
 void setup() {
     w_setup("32BPP Test", 320, 240, 32, 2);
-    img = create_image_from_data(image_pixels, image_width, image_height, 32);
+    img = png_decode(assets_test_card_png_data, sizeof(assets_test_card_png_data));
 }
 
 void draw() {

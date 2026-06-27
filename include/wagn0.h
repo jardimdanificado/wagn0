@@ -575,6 +575,23 @@ static inline void _wagn0_set_pixel(int x, int y, pixel_t c) {
     pixels[y * wagn0.width + x] = c;
 }
 
+// Write a pixel using the canvas's actual BPP at runtime (not compile-time pixel_t).
+// Used by image()/image_scaled() which need to write to canvases with different BPP.
+static inline void _wagn0_set_pixel_rgb(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
+    if (x < 0 || x >= wagn0.width || y < 0 || y >= wagn0.height) return;
+    int bpp = wagn0.bpp;
+    if (bpp == 32) {
+        uint32_t* p = (uint32_t*)wagn0.canvas_pixels;
+        p[y * wagn0.width + x] = (uint32_t)((0xFF << 24) | ((b) << 16) | ((g) << 8) | (r));
+    } else if (bpp == 16) {
+        uint16_t* p = (uint16_t*)wagn0.canvas_pixels;
+        p[y * wagn0.width + x] = (uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3));
+    } else {
+        uint8_t* p = (uint8_t*)wagn0.canvas_pixels;
+        p[y * wagn0.width + x] = (uint8_t)(((r) & 0xE0) | (((g) & 0xE0) >> 3) | ((b) & 0xC0) >> 6);
+    }
+}
+
 static void _wagn0_draw_filled_rect(int x, int y, int w, int h, pixel_t c) {
     for (int iy = y; iy < y + h; iy++) {
         for (int ix = x; ix < x + w; ix++) {
@@ -824,7 +841,7 @@ void image(Wagn0Image img, int x, int y) {
             }
             
             if (img.bpp == 32 ? c.a > 128 : true) {
-                _wagn0_set_pixel(px, py, rgb(c.r, c.g, c.b));
+                _wagn0_set_pixel_rgb(px, py, c.r, c.g, c.b);
             }
         }
     }
@@ -869,7 +886,7 @@ void image_scaled(Wagn0Image img, int x, int y, int w, int h) {
             }
             
             if (img.bpp == 32 ? c.a > 128 : true) {
-                _wagn0_set_pixel(px, py, rgb(c.r, c.g, c.b));
+                _wagn0_set_pixel_rgb(px, py, c.r, c.g, c.b);
             }
         }
     }
@@ -1004,6 +1021,11 @@ int wupdate() {
         wagn0.canvas_pixels = w_vram;
         w_setup("WagnO Game", wagn0.width, wagn0.height, wagn0.bpp, wagn0.scale);
         setup();
+        // Re-read config from globals (user's setup() may have changed them)
+        wagn0.width  = w_width;
+        wagn0.height = w_height;
+        wagn0.bpp    = w_bpp;
+        wagn0.scale  = w_scale;
     }
     // Update time
     static uint32_t last_ticks = 0;

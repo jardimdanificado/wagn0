@@ -1,11 +1,11 @@
+#define WAGN0_BPP 8
 #include "wagn0.h"
-#include "image.rgb332.h"
 
 static Wagn0Image img;
 
 void setup() {
     w_setup("8BPP Test", 320, 240, 8, 2);
-    img = create_image_from_data(image_pixels, image_width, image_height, 8);
+    img = png_decode(assets_test_card_png_data, sizeof(assets_test_card_png_data));
 }
 
 void draw() {
