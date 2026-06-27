@@ -1,0 +1,9 @@
+{
+    "name": "image_gif",
+    "width": 320,
+    "height": 240,
+    "scale": 2,
+    "bpp": 16,
+    "memory": 8388608,
+    "src": ["main.c", "../image_common/decoders/gifdec.c", "../image_common/shim/libc_shim.c"]
+}
