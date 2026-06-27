@@ -141,12 +141,12 @@ build_wasm() {
     else
         decoder_inc="$decoder_inc -DWAGN0_NO_AUDIO_DECODE"
     fi
-    # libc shim needed when decoders use malloc (PNG, GIF, audio).
-    local needs_shim=0
-    find assets -name '*.png' -o -name '*.jpg' -o -name '*.gif' \
-               -o -name '*.wav' -o -name '*.mp3' -o -name '*.ogg' 2>/dev/null | grep -q . && needs_shim=1
-    [ -n "$decoder_c_files" ] && needs_shim=1
-    [ "$needs_shim" -eq 1 ] && decoder_c_files="$decoder_c_files $shim_c"
+    # Always link the shim. It provides strlen (so clang's
+    # text_width optimization doesn't emit env.strlen), memcpy/
+    # memset/memmove/abort (libc), and the software libm (sin/cos/exp
+    # /log/pow/ldexp/floor/ceil/fabs) for audio decoders. The size
+    # cost is small (~3KB) and keeps the WASM zero-import.
+    decoder_c_files="$decoder_c_files $shim_c"
 
     local config_flags="-DWAGN0_TITLE=\"$NAME\" -DWAGN0_CFG_W=$WIDTH -DWAGN0_CFG_H=$HEIGHT -DWAGN0_CFG_BPP=$BPP -DWAGN0_CFG_SCALE=$SCALE"
 
