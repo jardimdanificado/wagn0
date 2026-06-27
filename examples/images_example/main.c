@@ -1,16 +1,16 @@
 #include "wagn0.h"
 
-static Wagn0Image img;
+static Image img;
 static int pos_x = 100, pos_y = 70;
 static int scale_w = 120, scale_h = 100;
 
 void setup() {
     w_setup("WagnO - Images", 320, 240, 16, 4);
-    img = png_decode(assets_sprite_png_data, sizeof(assets_sprite_png_data));
+    img = img_load(assets_sprite_png_data, sizeof(assets_sprite_png_data));
 }
 
 void draw() {
-    background(BLACK);
+    clear(screen, BLACK);
 
     if (w_gamepad_buttons & W_BTN_LEFT)  pos_x -= 2;
     if (w_gamepad_buttons & W_BTN_RIGHT) pos_x += 2;
@@ -22,5 +22,5 @@ void draw() {
     if (w_gamepad_buttons & W_BTN_R2)    scale_h += 2;
     if (w_gamepad_buttons & W_BTN_A)     { scale_w = img.width; scale_h = img.height; }
 
-    if (img.pixels) image_scaled(img, pos_x, pos_y, scale_w, scale_h);
+    if (img.pixels) draw_image_scaled(screen, img, pos_x, pos_y, scale_w, scale_h);
 }

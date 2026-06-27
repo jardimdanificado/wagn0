@@ -1,16 +1,15 @@
 #define WAGN0_BPP 8
 #include "wagn0.h"
 
-static Wagn0Image img;
+static Image img;
 
 void setup() {
     w_setup("8BPP Test", 320, 240, 8, 2);
-    img = png_decode(assets_test_card_png_data, sizeof(assets_test_card_png_data));
+    img = img_load(assets_test_card_png_data, sizeof(assets_test_card_png_data));
 }
 
 void draw() {
-    background(BLACK);
-    fill(WHITE);
-    text("8BPP MODE (RGB332)", 10, 10);
-    if (img.pixels) image(img, (320 - img.width) / 2, (240 - img.height) / 2);
+    clear(screen, BLACK);
+    draw_text(screen, "8BPP MODE (RGB332)", 10, 10, WHITE);
+    if (img.pixels) draw_image(screen, img, (320 - img.width) / 2, (240 - img.height) / 2);
 }

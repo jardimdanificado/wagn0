@@ -1,6 +1,6 @@
 #include "wagn0.h"
 
-static Wagn0Image sheet;
+static Image sheet;
 static int sprite_w = 24, sprite_h = 24;
 
 typedef struct { float x, y, vx, vy; int w, h; } Sprite;
@@ -14,7 +14,7 @@ static uint32_t rnd() { seed = seed * 1103515245 + 12345; return (seed / 65536) 
 
 void setup() {
     w_setup("WagnO - Draw", 320, 240, 16, 4);
-    sheet = png_decode(assets_sprite_png_data, sizeof(assets_sprite_png_data));
+    sheet = img_load(assets_sprite_png_data, sizeof(assets_sprite_png_data));
 
     for (int i = 0; i < SPRITE_COUNT; i++) {
         sprites[i].w = sprite_w; sprites[i].h = sprite_h;
@@ -38,16 +38,14 @@ void draw() {
         fps_text[8] = 0;
     }
 
-    background(BLACK);
+    clear(screen, BLACK);
     if (!sheet.pixels) return;
 
     for (int i = 0; i < SPRITE_COUNT; i++) {
         sprites[i].x += sprites[i].vx; sprites[i].y += sprites[i].vy;
         if (sprites[i].x <= 0 || sprites[i].x + sprites[i].w >= 320) sprites[i].vx *= -1;
         if (sprites[i].y <= 0 || sprites[i].y + sprites[i].h >= 240) sprites[i].vy *= -1;
-        image_scaled(sheet, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h);
+        draw_image_scaled(screen, sheet, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h);
     }
 
-    fill(BLACK); no_stroke(); rect(5, 220, 80, 16);
-    fill(WHITE); text(fps_text, 10, 222);
 }

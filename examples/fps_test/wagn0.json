@@ -1,0 +1,6 @@
+{
+    "name": "fps_test",
+    "width": 320, "height": 240, "scale": 2, "bpp": 16,
+    "memory": 8388608,
+    "src": ["main.c"]
+}

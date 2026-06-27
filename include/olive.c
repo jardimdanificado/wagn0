@@ -121,7 +121,7 @@ static inline void olivec_set_pixel(Olivec_Canvas oc, int x, int y, uint32_t col
     if (x < 0 || (size_t)x >= oc.width || y < 0 || (size_t)y >= oc.height) return;
     if (oc.bpp == 32) ((uint32_t*)oc.pixels)[y * oc.stride + x] = color;
     else if (oc.bpp == 16) { if (color != 0) ((uint16_t*)oc.pixels)[y * oc.stride + x] = (uint16_t)color; }
-    else ((uint8_t*)oc.pixels)[y * oc.stride + x] = (uint8_t)color;
+    else if (oc.bpp == 8)  { if (color != 0) ((uint8_t*)oc.pixels)[y * oc.stride + x] = (uint8_t)color; }
 }
 
 static inline uint32_t olivec_get_pixel(Olivec_Canvas oc, int x, int y) {

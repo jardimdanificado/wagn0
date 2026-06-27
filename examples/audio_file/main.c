@@ -10,14 +10,13 @@ void setup() {
 }
 
 void draw() {
-    background(BLACK);
-    fill(WHITE);
+    clear(screen, BLACK);
     if (audio_is_playing()) {
-        text("playing...", 10, 10);
+        draw_text(screen, "playing...", 10, 10, WHITE);
     } else if (my_audio.samples) {
-        text("press SPACE to play", 10, 10);
+        draw_text(screen, "press SPACE to play", 10, 10, WHITE);
     } else {
-        text("failed to decode", 10, 10);
+        draw_text(screen, "failed to decode", 10, 10, WHITE);
     }
 }
 

@@ -14,11 +14,10 @@ static int active_count(void) {
 }
 
 void draw() {
-    background(BLACK);
+    clear(screen, BLACK);
 
-    fill(WHITE);
-    text("press 1-5 to play", 10, 10);
-    text("1=A4  2=C5  3=E5  4=G5  5=noise", 10, 30);
+    draw_text(screen, "press 1-5 to play", 10, 10, WHITE);
+    draw_text(screen, "1=A4  2=C5  3=E5  4=G5  5=noise", 10, 30, WHITE);
 
     char buf[16];
     int n = active_count();
@@ -33,10 +32,8 @@ void draw() {
     }
     buf[i] = 0;
 
-    fill(GREEN);
-    text("active:", 10, 60);
-    fill(WHITE);
-    text(buf, 80, 60);
+    draw_text(screen, "active:", 10, 60, WHITE);
+    draw_text(screen, buf, 80, 60, WHITE);
 }
 
 void key_pressed(int key) {

@@ -23,7 +23,7 @@ void setup() {
 }
 
 void draw() {
-    background(BLACK);
+    clear(screen, BLACK);
     if (!gif) return;
 
     uint32_t now = w_ticks;

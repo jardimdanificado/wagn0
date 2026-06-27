@@ -112,12 +112,15 @@ typedef struct {
 
 // Rect is defined in wagnostic.h
 
+typedef struct { void* pixels; int width; int height; int stride; uint8_t bpp; } Canvas;
+typedef struct { void* pixels; int width; int height; int bpp; } Image;
+
 // ============================================
 // GLOBAL STATE (managed by WagnO)
 // ============================================
 
 static struct {
-    // Screen
+    // Screen config
     int width;
     int height;
     int bpp;
@@ -141,16 +144,12 @@ static struct {
     bool keys_pressed[256];
     bool keys_released[256];
     
-    // Graphics
-    pixel_t fill_color;
-    pixel_t stroke_color;
-    int stroke_weight;
-    bool no_fill;
-    bool no_stroke;
-    
-    // Canvas pointer (internal)
+    // Main canvas (wraps w_vram)
     void* canvas_pixels;
 } wagn0;
+
+// The default screen canvas — initialized in wupdate()
+Canvas screen;
 
 // ============================================
 // MATH CONSTANTS
@@ -273,50 +272,27 @@ static inline Vec2 vec2_normalize(Vec2 v) {
 }
 
 // ============================================
-// DRAWING STATE FUNCTIONS
+// CANVAS FUNCTIONS
 // ============================================
 
-static inline void fill(pixel_t c) {
-    wagn0.fill_color = c;
-    wagn0.no_fill = false;
-}
-
-static inline void no_fill() {
-    wagn0.no_fill = true;
-}
-
-static inline void stroke(pixel_t c) {
-    wagn0.stroke_color = c;
-    wagn0.no_stroke = false;
-}
-
-static inline void no_stroke() {
-    wagn0.no_stroke = true;
-}
-
-static inline void stroke_weight(int w) {
-    wagn0.stroke_weight = w;
-}
+Canvas canvas_sub(Canvas src, int x, int y, int w, int h);
 
 // ============================================
-// DRAWING PRIMITIVES (declared, implemented below)
+// DRAWING PRIMITIVES
 // ============================================
 
-void background(pixel_t c);
-void rect(int x, int y, int w, int h);
-void rect_mode(int mode);  // 0=CORNER, 1=CENTER
-void ellipse(int x, int y, int w, int h);
-void line(int x1, int y1, int x2, int y2);
-void point(int x, int y);
-void triangle(int x1, int y1, int x2, int y2, int x3, int y3);
-void quad(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4);
-void arc(int x, int y, int w, int h, float start, float stop);
+void clear(Canvas c, pixel_t color);
+void draw_rect(Canvas c, int x, int y, int w, int h, pixel_t color);
+void draw_ellipse(Canvas c, int x, int y, int w, int h, pixel_t color);
+void draw_line(Canvas c, int x1, int y1, int x2, int y2, pixel_t color);
+void draw_pixel(Canvas c, int x, int y, pixel_t color);
+void draw_triangle(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, pixel_t color);
 
 // ============================================
 // TEXT FUNCTIONS
 // ============================================
 
-void text(const char* text, int x, int y);
+void draw_text(Canvas c, const char* text, int x, int y, pixel_t color);
 void text_size(int size);
 int text_width(const char* text);
 
@@ -324,20 +300,10 @@ int text_width(const char* text);
 // IMAGE FUNCTIONS
 // ============================================
 
-typedef struct {
-    void* pixels;
-    int width;
-    int height;
-    int bpp;  // 8, 16, or 32
-} Wagn0Image;
-
-Wagn0Image create_image(int width, int height, int bpp);
-Wagn0Image create_image_from_data(const void* data, int width, int height, int bpp);
-void image(Wagn0Image img, int x, int y);
-void image_scaled(Wagn0Image img, int x, int y, int w, int h);
-void load_image(Wagn0Image* img, const void* data, int width, int height, int bpp);
-
-Wagn0Image png_decode(const uint8_t* data, size_t size);
+Image img_create(const void* data, int width, int height, int bpp);
+void draw_image(Canvas c, Image img, int x, int y);
+void draw_image_scaled(Canvas c, Image img, int x, int y, int w, int h);
+Image img_load(const uint8_t* data, size_t size);
 
 // ============================================
 // AUDIO FUNCTIONS
@@ -366,6 +332,9 @@ int  audio_is_playing(void);
 Wagn0Audio wav_decode(const uint8_t* data, size_t size);
 Wagn0Audio mp3_decode(const uint8_t* data, size_t size);
 Wagn0Audio ogg_decode(const uint8_t* data, size_t size);
+
+void set_fps(uint32_t fps);
+void set_fps(uint32_t fps) { w_target_fps = fps; }
 
 // Default fill_audio — plays from active audio if set, otherwise synth.
 // Weak so user code can override entirely.
@@ -566,197 +535,57 @@ __attribute__((weak)) void key_pressed(int key) { (void)key; }
 __attribute__((weak)) void key_released(int key) { (void)key; }
 #endif
 
-static int _wagn0_rect_mode = 0;  // 0=CORNER, 1=CENTER
-
-// Internal drawing functions
-static inline void _wagn0_set_pixel(int x, int y, pixel_t c) {
-    if (x < 0 || x >= wagn0.width || y < 0 || y >= wagn0.height) return;
-    pixel_t* pixels = (pixel_t*)wagn0.canvas_pixels;
-    pixels[y * wagn0.width + x] = c;
-}
-
-// Write a pixel using the canvas's actual BPP at runtime (not compile-time pixel_t).
-// Used by image()/image_scaled() which need to write to canvases with different BPP.
-static inline void _wagn0_set_pixel_rgb(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
-    if (x < 0 || x >= wagn0.width || y < 0 || y >= wagn0.height) return;
-    int bpp = wagn0.bpp;
-    if (bpp == 32) {
-        uint32_t* p = (uint32_t*)wagn0.canvas_pixels;
-        p[y * wagn0.width + x] = (uint32_t)((0xFF << 24) | ((b) << 16) | ((g) << 8) | (r));
-    } else if (bpp == 16) {
-        uint16_t* p = (uint16_t*)wagn0.canvas_pixels;
-        p[y * wagn0.width + x] = (uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3));
-    } else {
-        uint8_t* p = (uint8_t*)wagn0.canvas_pixels;
-        p[y * wagn0.width + x] = (uint8_t)(((r) & 0xE0) | (((g) & 0xE0) >> 3) | ((b) & 0xC0) >> 6);
-    }
-}
-
-static void _wagn0_draw_filled_rect(int x, int y, int w, int h, pixel_t c) {
-    for (int iy = y; iy < y + h; iy++) {
-        for (int ix = x; ix < x + w; ix++) {
-            _wagn0_set_pixel(ix, iy, c);
-        }
-    }
-}
-
-static void _wagn0_draw_rect_outline(int x, int y, int w, int h, pixel_t c, int weight) {
-    for (int i = 0; i < weight; i++) {
-        // Top
-        for (int ix = x + i; ix < x + w - i; ix++) {
-            _wagn0_set_pixel(ix, y + i, c);
-        }
-        // Bottom
-        for (int ix = x + i; ix < x + w - i; ix++) {
-            _wagn0_set_pixel(ix, y + h - 1 - i, c);
-        }
-        // Left
-        for (int iy = y + i; iy < y + h - i; iy++) {
-            _wagn0_set_pixel(x + i, iy, c);
-        }
-        // Right
-        for (int iy = y + i; iy < y + h - i; iy++) {
-            _wagn0_set_pixel(x + w - 1 - i, iy, c);
-        }
-    }
-}
-
 // ============================================
-// DRAWING PRIMITIVES IMPLEMENTATION
+// CANVAS & DRAWING IMPLEMENTATION
 // ============================================
 
-void background(pixel_t c) {
-    _wagn0_draw_filled_rect(0, 0, wagn0.width, wagn0.height, c);
+Canvas canvas_sub(Canvas src, int x, int y, int w, int h) {
+    Olivec_Canvas oc = { src.pixels, (size_t)src.width, (size_t)src.height,
+                        (size_t)src.stride, src.bpp };
+    Olivec_Canvas sub = olivec_subcanvas(oc, x, y, w, h);
+    Canvas c = { sub.pixels, (int)sub.width, (int)sub.height, (int)sub.stride, sub.bpp };
+    return c;
 }
 
-void rect(int x, int y, int w, int h) {
-    if (_wagn0_rect_mode == 1) {  // CENTER
-        x -= w / 2;
-        y -= h / 2;
-    }
-    
-    if (!wagn0.no_fill) {
-        _wagn0_draw_filled_rect(x, y, w, h, wagn0.fill_color);
-    }
-    if (!wagn0.no_stroke) {
-        _wagn0_draw_rect_outline(x, y, w, h, wagn0.stroke_color, wagn0.stroke_weight);
-    }
+void clear(Canvas c, pixel_t color) {
+    size_t n = (size_t)c.width * c.height;
+    if (c.bpp == 32) { uint32_t* p = (uint32_t*)c.pixels; while (n--) *p++ = (uint32_t)color; }
+    else if (c.bpp == 16) { uint16_t* p = (uint16_t*)c.pixels; while (n--) *p++ = (uint16_t)color; }
+    else { uint8_t* p = (uint8_t*)c.pixels; while (n--) *p++ = (uint8_t)color; }
 }
 
-void rect_mode(int mode) {
-    _wagn0_rect_mode = mode;
+void draw_rect(Canvas c, int x, int y, int w, int h, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    olivec_rect(oc, x, y, w, h, color);
 }
 
-void ellipse(int x, int y, int w, int h) {
-    int rx = w / 2;
-    int ry = h / 2;
-    
-    // Draw filled ellipse
-    for (int iy = -ry; iy <= ry; iy++) {
-        for (int ix = -rx; ix <= rx; ix++) {
-            float nx = (float)ix / rx;
-            float ny = (float)iy / ry;
-            if (nx * nx + ny * ny <= 1.0f) {
-                if (!wagn0.no_fill) {
-                    _wagn0_set_pixel(x + ix, y + iy, wagn0.fill_color);
-                }
-            }
-        }
-    }
-    
-    if (!wagn0.no_stroke) {
-        // Draw outline
-        for (int angle = 0; angle < 360; angle++) {
-            float rad = angle * PI / 180.0f;
-            int px = x + (int)(rx * cos(rad));
-            int py = y + (int)(ry * sin(rad));
-            _wagn0_set_pixel(px, py, wagn0.stroke_color);
-        }
-    }
+void draw_ellipse(Canvas c, int x, int y, int w, int h, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    int rx = w / 2, ry = h / 2;
+    for (int iy = -ry; iy <= ry; iy++)
+        for (int ix = -rx; ix <= rx; ix++)
+            if ((float)(ix*ix)/(rx*rx) + (float)(iy*iy)/(ry*ry) <= 1.0f)
+                olivec_set_pixel(oc, x + ix, y + iy, (uint32_t)color);
 }
 
-void line(int x1, int y1, int x2, int y2) {
-    // Bresenham's line algorithm
-    int dx = x2 - x1;
-    int dy = y2 - y1;
-    int steps = dx > dy ? dx : dy;
-    if (steps == 0) steps = 1;
-    
-    float x_inc = (float)dx / steps;
-    float y_inc = (float)dy / steps;
-    
-    float x = x1;
-    float y = y1;
-    
-    for (int i = 0; i <= steps; i++) {
-        _wagn0_set_pixel((int)x, (int)y, wagn0.stroke_color);
-        x += x_inc;
-        y += y_inc;
-    }
+void draw_line(Canvas c, int x1, int y1, int x2, int y2, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    olivec_line(oc, x1, y1, x2, y2, color);
 }
 
-void point(int x, int y) {
-    _wagn0_set_pixel(x, y, wagn0.stroke_color);
+void draw_pixel(Canvas c, int x, int y, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    olivec_set_pixel(oc, x, y, (uint32_t)color);
 }
 
-void triangle(int x1, int y1, int x2, int y2, int x3, int y3) {
-    if (!wagn0.no_fill) {
-        // Scanline fill
-        int min_y = y1 < y2 ? (y1 < y3 ? y1 : y3) : (y2 < y3 ? y2 : y3);
-        int max_y = y1 > y2 ? (y1 > y3 ? y1 : y3) : (y2 > y3 ? y2 : y3);
-        
-        for (int y = min_y; y <= max_y; y++) {
-            int x_min = wagn0.width, x_max = 0;
-            
-            // Check edges with zero-division protection
-            if (y >= y1 && y <= y2 && y2 != y1) {
-                int x = x1 + (x2 - x1) * (y - y1) / (y2 - y1);
-                if (x < x_min) x_min = x;
-                if (x > x_max) x_max = x;
-            }
-            if (y >= y2 && y <= y3 && y3 != y2) {
-                int x = x2 + (x3 - x2) * (y - y2) / (y3 - y2);
-                if (x < x_min) x_min = x;
-                if (x > x_max) x_max = x;
-            }
-            if (y >= y3 && y <= y1 && y1 != y3) {
-                int x = x3 + (x1 - x3) * (y - y3) / (y1 - y3);
-                if (x < x_min) x_min = x;
-                if (x > x_max) x_max = x;
-            }
-            
-            for (int x = x_min; x <= x_max; x++) {
-                _wagn0_set_pixel(x, y, wagn0.fill_color);
-            }
-        }
-    }
-    
-    if (!wagn0.no_stroke) {
-        line(x1, y1, x2, y2);
-        line(x2, y2, x3, y3);
-        line(x3, y3, x1, y1);
-    }
-}
-
-void quad(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4) {
-    if (!wagn0.no_stroke) {
-        line(x1, y1, x2, y2);
-        line(x2, y2, x3, y3);
-        line(x3, y3, x4, y4);
-        line(x4, y4, x1, y1);
-    }
-}
-
-void arc(int x, int y, int w, int h, float start, float stop) {
-    // Simple arc implementation
-    int rx = w / 2;
-    int ry = h / 2;
-    
-    for (float angle = start; angle < stop; angle += 0.01f) {
-        int px = x + (int)(rx * cos(angle));
-        int py = y + (int)(ry * sin(angle));
-        _wagn0_set_pixel(px, py, wagn0.stroke_color);
-    }
+void draw_triangle(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    olivec_triangle(oc, x1, y1, x2, y2, x3, y3, color);
 }
 
 // ============================================
@@ -765,12 +594,11 @@ void arc(int x, int y, int w, int h, float start, float stop) {
 
 static int _wagn0_text_size = 1;
 
-void text(const char* text_str, int x, int y) {
-    Olivec_Canvas oc = olivec_canvas(
-        wagn0.canvas_pixels, wagn0.width, wagn0.height,
-        wagn0.width, WAGN0_BPP);
+void draw_text(Canvas c, const char* text_str, int x, int y, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
     olivec_text(oc, text_str, x, y, olivec_default_font,
-                (size_t)_wagn0_text_size, (uint32_t)wagn0.fill_color);
+                (size_t)_wagn0_text_size, (uint32_t)color);
 }
 
 void text_size(int size) {
@@ -787,107 +615,58 @@ int text_width(const char* text_str) {
 // IMAGE FUNCTIONS IMPLEMENTATION
 // ============================================
 
-Wagn0Image create_image(int width, int height, int bpp) {
-    Wagn0Image img;
-    img.width = width;
-    img.height = height;
-    img.bpp = bpp;
-    img.pixels = NULL;
+Image img_create(const void* data, int width, int height, int bpp) {
+    Image img = { (void*)data, width, height, bpp };
     return img;
 }
 
-Wagn0Image create_image_from_data(const void* data, int width, int height, int bpp) {
-    Wagn0Image img;
-    img.width = width;
-    img.height = height;
-    img.bpp = bpp;
-    img.pixels = (void*)data;
-    return img;
+// Helper: read a pixel from any image/Canvas and return RGBA components
+static inline Color _pixel_to_rgba(Image img, int index) {
+    Color c = {0,0,0,255};
+    if (img.bpp == 32) {
+        uint32_t p = ((uint32_t*)img.pixels)[index];
+        c.r = p & 0xFF; c.g = (p>>8)&0xFF; c.b = (p>>16)&0xFF; c.a = (p>>24)&0xFF;
+    } else if (img.bpp == 16) {
+        uint16_t p = ((uint16_t*)img.pixels)[index];
+        c.r = ((p>>11)&0x1F)*255/31; c.g = ((p>>5)&0x3F)*255/63; c.b = (p&0x1F)*255/31;
+    } else {
+        uint8_t p = ((uint8_t*)img.pixels)[index];
+        c.r = ((p>>5)&7)*255/7; c.g = ((p>>2)&7)*255/7; c.b = (p&3)*255/3;
+    }
+    return c;
 }
 
-void image(Wagn0Image img, int x, int y) {
+// Helper: write RGBA to canvas with runtime BPP conversion
+static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (x < 0 || x >= c.width || y < 0 || y >= c.height) return;
+    if (c.bpp == 32) ((uint32_t*)c.pixels)[y * c.stride + x] = (a<<24)|(b<<16)|(g<<8)|r;
+    else if (c.bpp == 16) ((uint16_t*)c.pixels)[y * c.stride + x] = ((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);
+    else ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
+}
+
+void draw_image(Canvas c, Image img, int x, int y) {
     if (!img.pixels) return;
-    
-    // Draw image pixel by pixel
     for (int iy = 0; iy < img.height; iy++) {
         for (int ix = 0; ix < img.width; ix++) {
-            int px = x + ix;
-            int py = y + iy;
-            
-            if (px < 0 || px >= wagn0.width || py < 0 || py >= wagn0.height) continue;
-            
-            Color c;
-            if (img.bpp == 32) {
-                uint32_t* pixels = (uint32_t*)img.pixels;
-                uint32_t p = pixels[iy * img.width + ix];
-                c.r = p & 0xFF;
-                c.g = (p >> 8) & 0xFF;
-                c.b = (p >> 16) & 0xFF;
-                c.a = (p >> 24) & 0xFF;
-            } else if (img.bpp == 16) {
-                uint16_t* pixels = (uint16_t*)img.pixels;
-                uint16_t p = pixels[iy * img.width + ix];
-                c.r = ((p >> 11) & 0x1F) * 255 / 31;
-                c.g = ((p >> 5) & 0x3F) * 255 / 63;
-                c.b = (p & 0x1F) * 255 / 31;
-                c.a = 255;
-            } else {
-                uint8_t* pixels = (uint8_t*)img.pixels;
-                uint8_t p = pixels[iy * img.width + ix];
-                c.r = ((p >> 5) & 0x07) * 255 / 7;
-                c.g = ((p >> 2) & 0x07) * 255 / 7;
-                c.b = (p & 0x03) * 255 / 3;
-                c.a = 255;
-            }
-            
-            if (img.bpp == 32 ? c.a > 128 : true) {
-                _wagn0_set_pixel_rgb(px, py, c.r, c.g, c.b);
-            }
+            int px = x + ix, py = y + iy;
+            if (px < 0 || px >= c.width || py < 0 || py >= c.height) continue;
+            Color col = _pixel_to_rgba(img, iy * img.width + ix);
+            if (img.bpp == 32 && col.a <= 128) continue;
+            _canvas_set_pixel(c, px, py, col.r, col.g, col.b, col.a);
         }
     }
 }
 
-void image_scaled(Wagn0Image img, int x, int y, int w, int h) {
+void draw_image_scaled(Canvas c, Image img, int x, int y, int w, int h) {
     if (!img.pixels) return;
-    
-    // Simple nearest-neighbor scaling
     for (int iy = 0; iy < h; iy++) {
         for (int ix = 0; ix < w; ix++) {
-            int src_x = ix * img.width / w;
-            int src_y = iy * img.height / h;
-            
-            int px = x + ix;
-            int py = y + iy;
-            
-            if (px < 0 || px >= wagn0.width || py < 0 || py >= wagn0.height) continue;
-            
-            Color c;
-            if (img.bpp == 32) {
-                uint32_t* pixels = (uint32_t*)img.pixels;
-                uint32_t p = pixels[src_y * img.width + src_x];
-                c.r = p & 0xFF;
-                c.g = (p >> 8) & 0xFF;
-                c.b = (p >> 16) & 0xFF;
-                c.a = (p >> 24) & 0xFF;
-            } else if (img.bpp == 16) {
-                uint16_t* pixels = (uint16_t*)img.pixels;
-                uint16_t p = pixels[src_y * img.width + src_x];
-                c.r = ((p >> 11) & 0x1F) * 255 / 31;
-                c.g = ((p >> 5) & 0x3F) * 255 / 63;
-                c.b = (p & 0x1F) * 255 / 31;
-                c.a = 255;
-            } else {
-                uint8_t* pixels = (uint8_t*)img.pixels;
-                uint8_t p = pixels[src_y * img.width + src_x];
-                c.r = ((p >> 5) & 0x07) * 255 / 7;
-                c.g = ((p >> 2) & 0x07) * 255 / 7;
-                c.b = (p & 0x03) * 255 / 3;
-                c.a = 255;
-            }
-            
-            if (img.bpp == 32 ? c.a > 128 : true) {
-                _wagn0_set_pixel_rgb(px, py, c.r, c.g, c.b);
-            }
+            int px = x + ix, py = y + iy;
+            if (px < 0 || px >= c.width || py < 0 || py >= c.height) continue;
+            int sx = ix * img.width / w, sy = iy * img.height / h;
+            Color col = _pixel_to_rgba(img, sy * img.width + sx);
+            if (img.bpp == 32 && col.a <= 128) continue;
+            _canvas_set_pixel(c, px, py, col.r, col.g, col.b, col.a);
         }
     }
 }
@@ -901,11 +680,11 @@ void image_scaled(Wagn0Image img, int x, int y, int w, int h) {
 unsigned lodepng_decode32(unsigned char** out, unsigned* w, unsigned* h,
                          const unsigned char* in, size_t insize);
 
-Wagn0Image png_decode(const uint8_t* data, size_t size) {
+Image img_load(const uint8_t* data, size_t size) {
     uint8_t* decoded = 0;
     unsigned w, h;
-    if (lodepng_decode32(&decoded, &w, &h, data, size)) return (Wagn0Image){0};
-    return (Wagn0Image){ .pixels = decoded, .width = (int)w, .height = (int)h, .bpp = 32 };
+    if (lodepng_decode32(&decoded, &w, &h, data, size)) return (Image){0};
+    return (Image){ .pixels = decoded, .width = (int)w, .height = (int)h, .bpp = 32 };
 }
 #endif
 
@@ -997,87 +776,65 @@ Wagn0Audio ogg_decode(const uint8_t* data, size_t size) {
 // ============================================
 
 int wupdate() {
-    // One-time initialization
     static int init = 0;
     if (!init) {
         init = 1;
-        wagn0.width  = 320;
-        wagn0.height = 240;
-        wagn0.bpp    = 16;
-        wagn0.scale  = 4;
-        wagn0.frame_count  = 0;
-        wagn0.fps    = 0;
+        wagn0.width  = 320; wagn0.height = 240;
+        wagn0.bpp    = 16;  wagn0.scale  = 4;
+        wagn0.frame_count = 0; wagn0.fps = 0;
         wagn0.delta_time = 0.016f;
-        wagn0.fill_color   = WHITE;
-        wagn0.stroke_color = BLACK;
-        wagn0.stroke_weight = 1;
-        wagn0.no_fill   = false;
-        wagn0.no_stroke = false;
-        wagn0.mouse  = vec2(0, 0);
-        wagn0.pmouse = vec2(0, 0);
-        wagn0.mouse_pressed  = false;
-        wagn0.mouse_released = false;
-        wagn0.mouse_down     = false;
+        wagn0.mouse  = vec2(0, 0); wagn0.pmouse = vec2(0, 0);
+        wagn0.mouse_pressed = false; wagn0.mouse_released = false;
+        wagn0.mouse_down = false;
+        // Initialize screen canvas
         wagn0.canvas_pixels = w_vram;
-        w_setup("WagnO Game", wagn0.width, wagn0.height, wagn0.bpp, wagn0.scale);
+        screen.pixels = w_vram; screen.width = 320; screen.height = 240;
+        screen.stride = 320; screen.bpp = 16;
+        w_setup("WagnO Game", 320, 240, 16, 4);
         setup();
-        // Re-read config from globals (user's setup() may have changed them)
-        wagn0.width  = w_width;
-        wagn0.height = w_height;
-        wagn0.bpp    = w_bpp;
-        wagn0.scale  = w_scale;
+        // Re-read after user's setup()
+        wagn0.width = w_width; wagn0.height = w_height;
+        wagn0.bpp = w_bpp; wagn0.scale = w_scale;
+        screen.width = w_width; screen.height = w_height;
+        screen.stride = w_width; screen.bpp = (uint8_t)w_bpp;
     }
     // Update time
     static uint32_t last_ticks = 0;
-    uint32_t current_ticks = w_ticks;
-    if (last_ticks > 0) {
-        wagn0.delta_time = (current_ticks - last_ticks) / 1000.0f;
-    }
-    last_ticks = current_ticks;
-    wagn0.frame_count++;
+    uint32_t now = w_ticks;
+    if (last_ticks > 0) wagn0.delta_time = (now - last_ticks) / 1000.0f;
+    last_ticks = now; wagn0.frame_count++;
     
-    // Update input state
     wagn0.pmouse = wagn0.mouse;
     wagn0.mouse = vec2(w_mouse_x, w_mouse_y);
-    
-    // Detect mouse press/release
-    bool current_mouse_down = (w_mouse_buttons & 1) != 0;
-    wagn0.mouse_pressed = current_mouse_down && !wagn0.mouse_down;
-    wagn0.mouse_released = !current_mouse_down && wagn0.mouse_down;
-    wagn0.mouse_down = current_mouse_down;
-    wagn0.mouse_button = current_mouse_down ? 1 : 0;
-    
-    // Detect key press/release
+    bool cur = (w_mouse_buttons & 1) != 0;
+    wagn0.mouse_pressed = cur && !wagn0.mouse_down;
+    wagn0.mouse_released = !cur && wagn0.mouse_down;
+    wagn0.mouse_down = cur;
+    wagn0.mouse_button = cur ? 1 : 0;
     for (int i = 0; i < 256; i++) {
-        bool current_key = w_keys[i] != 0;
-        wagn0.keys_pressed[i] = current_key && !wagn0.keys[i];
-        wagn0.keys_released[i] = !current_key && wagn0.keys[i];
-        wagn0.keys[i] = current_key;
+        bool k = w_keys[i] != 0;
+        wagn0.keys_pressed[i] = k && !wagn0.keys[i];
+        wagn0.keys_released[i] = !k && wagn0.keys[i];
+        wagn0.keys[i] = k;
     }
-    
-    // Call user functions
     update();
-    
-    // Clear drawing state
-    wagn0.no_fill = false;
-    wagn0.no_stroke = false;
-    wagn0.stroke_weight = 1;
-    
-    // Call user draw
     draw();
-
-    // Fill audio buffer
     fill_audio();
-
-    // Handle user callbacks
+    // Auto-calculate FPS
+    static uint32_t _fps_timer = 0;
+    if (_fps_timer == 0) _fps_timer = now;
+    uint32_t _fps_elapsed = now - _fps_timer;
+    if (_fps_elapsed >= 1000) {
+        wagn0.fps = (wagn0.frame_count * 1000) / (_fps_elapsed ? _fps_elapsed : 1);
+        wagn0.frame_count = 0;
+        _fps_timer = now;
+    }
     if (wagn0.mouse_pressed) mouse_pressed();
     if (wagn0.mouse_released) mouse_released();
-
     for (int i = 0; i < 256; i++) {
         if (wagn0.keys_pressed[i]) key_pressed(i);
         if (wagn0.keys_released[i]) key_released(i);
     }
-
     w_redraw();
     return 1;
 }

@@ -97,6 +97,10 @@ extern uint8_t w_audio_buffer[];
 extern uint32_t w_audio_underrun;
 extern uint32_t w_audio_overrun;
 
+// --- Framerate control (ROM writes, Host reads) ---
+// Host calls wupdate() at this rate. 0 = no limit (default).
+extern uint32_t w_target_fps;
+
 // ============================================
 // HELPER FUNCTIONS (inline)
 // ============================================
@@ -172,6 +176,9 @@ uint32_t w_gamepad_buttons = 0;
 
 // --- Timing ---
 uint32_t w_ticks = 0;
+
+// --- Framerate ---
+uint32_t w_target_fps = 0;
 
 // --- Audio ---
 uint32_t w_audio_size = 0;
