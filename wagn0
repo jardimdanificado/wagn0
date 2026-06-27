@@ -107,11 +107,52 @@ build_wasm() {
     [ "$release" = "release" ] && opt="-O3"
 
     info "Compiling ${NAME} -> ${target}"
+    # Auto-generate assets.h
+    asset_run
+
+    # Detect which decoders are needed and add their source + include paths
+    local decoder_c_files=""
+    local decoder_inc="-I${WAGNO_DIR}/lib/include"
+    local shim_c="${WAGNO_DIR}/lib/shim/libc_shim.c"
+    if find assets -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.bmp' 2>/dev/null | grep -q .; then
+        decoder_c_files="$decoder_c_files ${WAGNO_DIR}/lib/decoders/lodepng.c"
+        decoder_inc="$decoder_inc -I${WAGNO_DIR}/lib/decoders \
+            -DLODEPNG_NO_COMPILE_DISK -DLODEPNG_NO_COMPILE_ENCODER \
+            -DLODEPNG_NO_COMPILE_ANCILLARY_CHUNKS -DLODEPNG_NO_COMPILE_ERROR_TEXT"
+    else
+        # No PNG assets: disable png_decode to avoid lodepng_decode32 import
+        decoder_inc="$decoder_inc -DWAGN0_NO_PNG_DECODE"
+    fi
+    if find assets -name '*.gif' 2>/dev/null | grep -q .; then
+        decoder_c_files="$decoder_c_files ${WAGNO_DIR}/lib/decoders/gifdec.c \
+                         ${WAGNO_DIR}/lib/decoders/posix_shim.c"
+        decoder_inc="$decoder_inc -I${WAGNO_DIR}/lib/decoders"
+    else
+        decoder_inc="$decoder_inc -DWAGN0_NO_GIF_DECODE \
+            -I${WAGNO_DIR}/lib/decoders"
+    fi
+    if find assets -name '*.wav' -o -name '*.mp3' -o -name '*.ogg' 2>/dev/null | grep -q .; then
+        decoder_inc="$decoder_inc -I${WAGNO_DIR}/lib/decoders \
+                     -DSTB_VORBIS_NO_STDIO"
+        decoder_c_files="$decoder_c_files ${WAGNO_DIR}/lib/decoders/stb_vorbis.c"
+    fi
+    if find assets -name '*.wav' -o -name '*.mp3' -o -name '*.ogg' 2>/dev/null | grep -q .; then
+        :  # has audio — don't disable decoders
+    else
+        decoder_inc="$decoder_inc -DWAGN0_NO_AUDIO_DECODE"
+    fi
+    # libc shim needed when decoders use malloc (PNG, GIF, audio).
+    local needs_shim=0
+    find assets -name '*.png' -o -name '*.jpg' -o -name '*.gif' \
+               -o -name '*.wav' -o -name '*.mp3' -o -name '*.ogg' 2>/dev/null | grep -q . && needs_shim=1
+    [ -n "$decoder_c_files" ] && needs_shim=1
+    [ "$needs_shim" -eq 1 ] && decoder_c_files="$decoder_c_files $shim_c"
+
     if ! "$clang" --target=wasm32 -nostdlib -fno-delete-null-pointer-checks \
-        $opt -w $INCLUDE_DIR \
+        $opt -w $INCLUDE_DIR -I. $decoder_inc \
         -Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined \
         -Wl,--initial-memory="${MEMORY}" \
-        -o "$target" $src_files 2>&1; then
+        -o "$target" $src_files $decoder_c_files 2>&1; then
         err "Build failed"
         return 1
     fi
@@ -237,6 +278,71 @@ cmd_dev() {
         fi
         rebuild_and_run
     done
+}
+
+# ── Asset pipeline (internal, called by build) ───────────────────────────────
+# Scans assets/, detects type by extension, generates assets.h with hex arrays.
+# Variable names: assets/<path>.<ext> → assets_<path_underscored>_<ext>.
+
+asset_var_name() {
+    local p="${1#./}"; p="${p#assets/}"; p="${p//\//_}"; p="${p//./_}"; echo "assets_${p}"
+}
+
+asset_run() {
+    local assets_dir="assets"
+    local out="assets.h"
+
+    if [ ! -d "$assets_dir" ] || [ -z "$(find "$assets_dir" -type f 2>/dev/null)" ]; then
+        echo '#ifndef WAGN0_ASSETS_H' > "$out"
+        echo '#define WAGN0_ASSETS_H' >> "$out"
+        echo '#endif' >> "$out"
+        return 0
+    fi
+
+    local files; files=$(find "$assets_dir" -type f | sort)
+
+    {
+        echo "#ifndef WAGN0_ASSETS_H"
+        echo "#define WAGN0_ASSETS_H"
+        echo "#include <stdint.h>"
+        echo
+        for f in $files; do
+            local rel="${f#./}"; rel="${rel#assets/}"
+            local ext="${f##*.}"; ext=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
+            local var; var=$(asset_var_name "$rel")
+            local upper; upper=$(echo "$var" | tr '[:lower:]' '[:upper:]')
+
+            case "$ext" in
+                png|jpg|jpeg|bmp)
+                    # Embed the COMPRESSED file data (png_decode() decodes at runtime).
+                    # We still emit W/H macros from magick identify for convenience.
+                    local wh wh=$(magick identify -format "%w %h" "$f" 2>/dev/null)
+                    local w="${wh%% *}" h="${wh##* }"
+                    echo "// assets/$rel (${w}x${h}, compressed)"
+                    echo "#define ${upper}_W $w"
+                    echo "#define ${upper}_H $h"
+                    echo "const uint8_t ${var}_data[] = {"
+                    xxd -i -c 16 "$f" | grep '^  0x' | sed 's/,$/,/'
+                    echo "};"; echo
+                    ;;
+                wav|mp3|ogg)
+                    local sz sz=$(stat -c%s "$f")
+                    echo "// assets/$rel (${sz} bytes, compressed)"
+                    echo "const uint8_t ${var}_data[] = {"
+                    xxd -i -c 16 "$f" | grep '^  0x' | sed 's/,$/,/'
+                    echo "};"; echo
+                    ;;
+                *)
+                    local sz sz=$(stat -c%s "$f")
+                    echo "// assets/$rel (raw, ${sz} bytes)"
+                    echo "const uint8_t ${var}_data[] = {"
+                    xxd -i -c 16 "$f" | grep '^  0x' | sed 's/,$/,/'
+                    echo "};"; echo
+                    ;;
+            esac
+        done
+        echo "#endif"
+    } > "$out"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────

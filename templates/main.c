@@ -1,3 +1,4 @@
+#define WAGN0_NO_DEFAULT_CALLBACKS
 #include "wagn0.h"
 
 void setup() {

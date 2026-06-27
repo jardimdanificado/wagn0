@@ -18,10 +18,28 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 // Audio API below needs w_audio_* globals, so include wagnostic.h here.
 #define WAGNOSTIC_IMPLEMENTATION
 #include "wagnostic.h"
+
+// Auto-include generated assets.h (created by `wagn0 asset`).
+// Stub is generated when no assets/ exists, so the include always works.
+#if defined(__has_include)
+#  if __has_include("assets.h")
+#    include "assets.h"
+#  endif
+#elif __has_include("assets.h")
+#    include "assets.h"
+#endif
+
+// GIF decoder (gifdec + posix_shim). Build auto-defines WAGN0_NO_GIF_DECODE
+// when no GIF assets are found, so gifdec.h is only included when needed.
+#ifndef WAGN0_NO_GIF_DECODE
+#include "gifdec.h"
+#include "posix_shim.h"
+#endif
 
 // ============================================
 // BIT DEPTH CONFIGURATION
@@ -172,7 +190,7 @@ static inline float sqrt(float x) {
     return guess;
 }
 
-static inline float abs(float x) {
+static inline float wabs(float x) {
     return x < 0 ? -x : x;
 }
 
@@ -319,6 +337,8 @@ void image(Wagn0Image img, int x, int y);
 void image_scaled(Wagn0Image img, int x, int y, int w, int h);
 void load_image(Wagn0Image* img, const void* data, int width, int height, int bpp);
 
+Wagn0Image png_decode(const uint8_t* data, size_t size);
+
 // ============================================
 // AUDIO FUNCTIONS
 // ============================================
@@ -327,9 +347,28 @@ void play_tone(float freq, float duration, float volume);
 void play_noise(float duration, float volume);
 void stop_all_sounds(void);
 
-// Default fill_audio implementation — generates PCM from the tone
-// queue into the Wagnostic audio ring buffer. Weak so user code can
-// override (e.g. to stream embedded PCM data instead of synthesizing).
+// Decoded audio buffer for playing files (WAV/MP3/OGG).
+typedef struct {
+    const int16_t* samples;
+    uint32_t num_samples;
+    uint32_t sample_rate;
+    uint8_t channels;
+    uint8_t bpp;
+    uint32_t read_pos;
+    uint8_t active;
+} Wagn0Audio;
+
+void audio_play(const Wagn0Audio* audio);
+int  audio_is_playing(void);
+
+// Decoder wrappers — implementation is guarded by WAGN0_NO_AUDIO_DECODE
+// which the build auto-defines when no audio assets are present.
+Wagn0Audio wav_decode(const uint8_t* data, size_t size);
+Wagn0Audio mp3_decode(const uint8_t* data, size_t size);
+Wagn0Audio ogg_decode(const uint8_t* data, size_t size);
+
+// Default fill_audio — plays from active audio if set, otherwise synth.
+// Weak so user code can override entirely.
 __attribute__((weak)) void fill_audio(void);
 
 #define WAGN0_MAX_TONES 8
@@ -379,14 +418,55 @@ void stop_all_sounds(void) {
     }
 }
 
+static Wagn0Audio _wagn0_playing = {0};
+
+void audio_play(const Wagn0Audio* audio) {
+    if (audio && audio->samples && audio->num_samples > 0) {
+        _wagn0_playing = *audio;
+        _wagn0_playing.read_pos = 0;
+        _wagn0_playing.active = 1;
+        w_audio_size = sizeof(w_audio_buffer);
+        w_audio_sample_rate = audio->sample_rate;
+        w_audio_bpp = 2;
+        w_audio_channels = 1;
+        w_audio_write = 0;
+        w_audio_read = 0;
+    }
+}
+
+int audio_is_playing(void) {
+    return _wagn0_playing.active;
+}
+
 #ifndef WAGN0_CUSTOM_FILL_AUDIO
 __attribute__((weak)) void fill_audio(void) {
+    if (_wagn0_playing.active) {
+        uint32_t w = w_audio_write;
+        uint32_t r = w_audio_read;
+        uint32_t size = w_audio_size;
+        uint32_t occupied = (w >= r) ? (w - r) : (size - r + w);
+        uint32_t free = size - 1 - occupied;
+        if (free < 2) return;
+        uint32_t to_write = free / 2;
+        if (to_write > 2048) to_write = 2048;
+        uint32_t remaining = _wagn0_playing.num_samples - _wagn0_playing.read_pos;
+        if (to_write > remaining) to_write = remaining;
+        if (to_write == 0) { _wagn0_playing.active = 0; return; }
+        int16_t* buf = (int16_t*)w_audio_buffer;
+        for (uint32_t i = 0; i < to_write; i++) {
+            buf[w / 2] = _wagn0_playing.samples[_wagn0_playing.read_pos++];
+            w = (w + 2) % size;
+        }
+        w_audio_write = w;
+        return;
+    }
+
     if (!_wagn0_audio_init) {
         _wagn0_init_sin_lut();
         w_audio_size         = sizeof(w_audio_buffer);
         w_audio_sample_rate  = WAGN0_AUDIO_SAMPLE_RATE;
-        w_audio_bpp          = 2;        // s16
-        w_audio_channels     = 1;        // mono
+        w_audio_bpp          = 2;
+        w_audio_channels     = 1;
         w_audio_write        = 0;
         w_audio_read         = 0;
         _wagn0_audio_init    = 1;
@@ -396,12 +476,10 @@ __attribute__((weak)) void fill_audio(void) {
     uint32_t r    = w_audio_read;
     uint32_t size = w_audio_size;
 
-    // Usable bytes = size - 1 (full vs empty distinction)
     uint32_t occupied = (w >= r) ? (w - r) : (size - r + w);
     if (occupied >= size - 1) return;
 
-    // ~10ms of audio per fill_audio call
-    uint32_t bytes_to_write = WAGN0_AUDIO_FADE_SAMPLES * 2;  // s16
+    uint32_t bytes_to_write = WAGN0_AUDIO_FADE_SAMPLES * 2;
     if (bytes_to_write > (size - 1 - occupied)) {
         bytes_to_write = size - 1 - occupied;
     }
@@ -796,6 +874,106 @@ void image_scaled(Wagn0Image img, int x, int y, int w, int h) {
         }
     }
 }
+
+// ============================================
+// DECODER WRAPPERS FOR ASSET DATA
+// ============================================
+
+// Guard: build auto-defines WAGN0_NO_PNG_DECODE when no PNG assets.
+#ifndef WAGN0_NO_PNG_DECODE
+unsigned lodepng_decode32(unsigned char** out, unsigned* w, unsigned* h,
+                         const unsigned char* in, size_t insize);
+
+Wagn0Image png_decode(const uint8_t* data, size_t size) {
+    uint8_t* decoded = 0;
+    unsigned w, h;
+    if (lodepng_decode32(&decoded, &w, &h, data, size)) return (Wagn0Image){0};
+    return (Wagn0Image){ .pixels = decoded, .width = (int)w, .height = (int)h, .bpp = 32 };
+}
+#endif
+
+// ============================================
+// AUDIO DECODERS
+// ============================================
+
+#ifndef WAGN0_NO_AUDIO_DECODE
+#define DR_WAV_NO_STDIO
+#define DR_WAV_IMPLEMENTATION
+#include "dr_wav.h"
+
+#define DR_MP3_NO_STDIO
+#define DR_MP3_IMPLEMENTATION
+#include "dr_mp3.h"
+
+#include "stb_vorbis.h"
+
+static inline void _monoize(const int16_t* stereo, int16_t* mono,
+                            uint64_t frames, uint8_t channels) {
+    for (uint64_t i = 0; i < frames; i++) {
+        int32_t sum = 0;
+        for (uint8_t c = 0; c < channels; c++)
+            sum += stereo[i * channels + c];
+        mono[i] = (int16_t)(sum / channels);
+    }
+}
+
+Wagn0Audio wav_decode(const uint8_t* data, size_t size) {
+    Wagn0Audio a = {0};
+    drwav wav;
+    if (!drwav_init_memory(&wav, data, size, NULL)) return a;
+    uint64_t frames = wav.totalPCMFrameCount;
+    uint8_t ch = (uint8_t)wav.channels;
+    int16_t* tmp = (int16_t*)malloc((size_t)(frames * ch * sizeof(int16_t)));
+    if (!tmp) { drwav_uninit(&wav); return a; }
+    drwav_read_pcm_frames_s16(&wav, frames, tmp);
+    drwav_uninit(&wav);
+    int16_t* mono = (int16_t*)malloc((size_t)(frames * sizeof(int16_t)));
+    if (!mono) { free(tmp); return a; }
+    _monoize(tmp, mono, frames, ch);
+    free(tmp);
+    a.samples = mono; a.num_samples = (uint32_t)frames;
+    a.sample_rate = wav.sampleRate; a.channels = 1; a.bpp = 2;
+    return a;
+}
+
+Wagn0Audio mp3_decode(const uint8_t* data, size_t size) {
+    Wagn0Audio a = {0};
+    drmp3 mp3;
+    if (!drmp3_init_memory(&mp3, data, size, NULL)) return a;
+    uint64_t frames = drmp3_get_pcm_frame_count(&mp3);
+    uint8_t ch = (uint8_t)mp3.channels;
+    int16_t* tmp = (int16_t*)malloc((size_t)(frames * ch * sizeof(int16_t)));
+    if (!tmp) { drmp3_uninit(&mp3); return a; }
+    drmp3_read_pcm_frames_s16(&mp3, frames, tmp);
+    drmp3_uninit(&mp3);
+    int16_t* mono = (int16_t*)malloc((size_t)(frames * sizeof(int16_t)));
+    if (!mono) { free(tmp); return a; }
+    _monoize(tmp, mono, frames, ch);
+    free(tmp);
+    a.samples = mono; a.num_samples = (uint32_t)frames;
+    a.sample_rate = mp3.sampleRate; a.channels = 1; a.bpp = 2;
+    return a;
+}
+
+Wagn0Audio ogg_decode(const uint8_t* data, size_t size) {
+    Wagn0Audio a = {0};
+    int ch, rate;
+    short* output;
+    int len = stb_vorbis_decode_memory(data, (int)size, &ch, &rate, &output);
+    if (len <= 0) return a;
+    int16_t* mono = (int16_t*)malloc((size_t)(len * sizeof(int16_t)));
+    if (!mono) { free(output); return a; }
+    if (ch > 1) {
+        _monoize(output, mono, (uint64_t)len, (uint8_t)ch);
+    } else {
+        for (int i = 0; i < len; i++) mono[i] = output[i];
+    }
+    free(output);
+    a.samples = mono; a.num_samples = (uint32_t)len;
+    a.sample_rate = (uint32_t)rate; a.channels = 1; a.bpp = 2;
+    return a;
+}
+#endif
 
 // ============================================
 // MAIN WAGNO FUNCTIONS
