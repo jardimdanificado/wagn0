@@ -5,13 +5,13 @@ static const uint32_t fps_values[FPS_COUNT] = { 60, 45, 30, 15 };
 static int fps_index = 0;
 static uint32_t last_switch = 0;
 
-void setup() {
-    w_setup("FPS Test", 320, 240, 16, 2);
-    set_fps(fps_values[0]);
-    last_switch = w_ticks;
-}
-
 void draw() {
+    static int _init = 0;
+    if (!_init) { _init = 1;
+        set_fps(fps_values[0]);
+        last_switch = w_ticks;
+    }
+
     clear(screen, BLACK);
 
     // Switch FPS every second

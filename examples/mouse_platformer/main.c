@@ -1,9 +1,10 @@
 #include "wagn0.h"
 
-
 // Screen dimensions
 #define SCREEN_W 320
 #define SCREEN_H 240
+// Convert RGBA8888 (0xAABBGGRR) → RGB565
+#define TO565(c) (uint16_t)((((c)&0xF8)<<8)|((((c)>>8)&0xFC)<<3)|((((c)>>16)&0xFF)>>3))
 
 // Physics constants
 #define GRAVITY 0.5f
@@ -38,7 +39,7 @@ typedef struct {
 // Platform structure
 typedef struct {
     int x, y, w, h;
-    uint16_t color;
+    uint32_t color;
 } Platform;
 
 // Coin structure
@@ -53,7 +54,7 @@ typedef struct {
     float x, y;
     float vx, vy;
     int life;
-    uint16_t color;
+    uint32_t color;
 } Particle;
 
 // Game state
@@ -80,13 +81,14 @@ int check_collision(float x1, float y1, int w1, int h1,
 }
 
 // Draw a rectangle
-void fill_rect(int x, int y, int w, int h, uint16_t color) {
+void fill_rect(int x, int y, int w, int h, uint32_t color) {
     uint16_t* pixels = (uint16_t*)_oc.pixels;
+    uint16_t c16 = TO565(color);
     for (int iy = y; iy < y + h; iy++) {
         if (iy < 0 || iy >= SCREEN_H) continue;
         for (int ix = x; ix < x + w; ix++) {
             if (ix >= 0 && ix < SCREEN_W) {
-                pixels[iy * SCREEN_W + ix] = color;
+                pixels[iy * SCREEN_W + ix] = c16;
             }
         }
     }
@@ -175,9 +177,9 @@ void draw_clear(void) {
         uint8_t r = 100 + (y * 50 / SCREEN_H);
         uint8_t g = 150 + (y * 50 / SCREEN_H);
         uint8_t b = 255;
-        uint16_t color = rgb(r, g, b);
+        uint16_t c565 = TO565(rgb(r, g, b));
         for (int x = 0; x < SCREEN_W; x++) {
-            pixels[y * SCREEN_W + x] = color;
+            pixels[y * SCREEN_W + x] = c565;
         }
     }
     
@@ -195,7 +197,7 @@ void draw_clear(void) {
             int start_x = mx + (mw - width_at_y) / 2;
             for (int x = start_x; x < start_x + width_at_y; x++) {
                 if (x >= 0 && x < SCREEN_W && my + y >= 0 && my + y < SCREEN_H) {
-                    pixels[(my + y) * SCREEN_W + x] = rgb(80, 120, 80);
+                    pixels[(my + y) * SCREEN_W + x] = TO565(rgb(80, 120, 80));
                 }
             }
         }
@@ -246,7 +248,7 @@ void draw_hud() {
 }
 
 // Create particle effect
-void create_particles(float x, float y, uint16_t color, int count) {
+void create_particles(float x, float y, uint32_t color, int count) {
     for (int i = 0; i < count && num_particles < 50; i++) {
         particles[num_particles].x = x;
         particles[num_particles].y = y;
@@ -259,47 +261,43 @@ void create_particles(float x, float y, uint16_t color, int count) {
 }
 
 // Initialize game
-void setup() {
-    w_setup("Mouse Platformer", SCREEN_W, SCREEN_H, 16, 4);
-    _oc = olivec_canvas(w_vram, SCREEN_W, SCREEN_H, SCREEN_W, 16);
-    
-    // Initialize player
-    player.x = 100;
-    player.y = 150;
-    player.vx = 0;
-    player.vy = 0;
-    player.width = 20;
-    player.height = 24;
-    player.on_ground = 0;
-    player.facing_right = 1;
-    
-    // Create platforms
-    // Ground
-    platforms[num_platforms++] = (Platform){0, 200, 1000, 40, rgb(100, 70, 50)};
-    
-    // Floating platforms
-    platforms[num_platforms++] = (Platform){100, 160, 80, 20, rgb(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){250, 130, 100, 20, rgb(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){400, 100, 80, 20, rgb(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){550, 140, 120, 20, rgb(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){700, 80, 80, 20, rgb(80, 160, 80)};
-    platforms[num_platforms++] = (Platform){850, 120, 100, 20, rgb(80, 160, 80)};
-    
-    // Walls
-    platforms[num_platforms++] = (Platform){0, 0, 20, 200, rgb(120, 100, 80)};
-    platforms[num_platforms++] = (Platform){980, 0, 20, 200, rgb(120, 100, 80)};
-    
-    // Create coins
-    coins[num_coins++] = (Coin){150, 140, 0, 0.0f};
-    coins[num_coins++] = (Coin){300, 110, 0, 1.0f};
-    coins[num_coins++] = (Coin){450, 80, 0, 2.0f};
-    coins[num_coins++] = (Coin){600, 120, 0, 3.0f};
-    coins[num_coins++] = (Coin){750, 60, 0, 4.0f};
-    coins[num_coins++] = (Coin){900, 100, 0, 5.0f};
-}
 
 // Update game state
 void draw() {
+    static int _init = 0;
+    if (!_init) { _init = 1;
+        _oc = olivec_canvas(w_vram, SCREEN_W, SCREEN_H, SCREEN_W, 16);
+        // Initialize player
+        player.x = 100;
+        player.y = 150;
+        player.vx = 0;
+        player.vy = 0;
+        player.width = 20;
+        player.height = 24;
+        player.on_ground = 0;
+        player.facing_right = 1;
+        // Create platforms
+        // Ground
+        platforms[num_platforms++] = (Platform){0, 200, 1000, 40, rgb(100, 70, 50)};
+        // Floating platforms
+        platforms[num_platforms++] = (Platform){100, 160, 80, 20, rgb(80, 160, 80)};
+        platforms[num_platforms++] = (Platform){250, 130, 100, 20, rgb(80, 160, 80)};
+        platforms[num_platforms++] = (Platform){400, 100, 80, 20, rgb(80, 160, 80)};
+        platforms[num_platforms++] = (Platform){550, 140, 120, 20, rgb(80, 160, 80)};
+        platforms[num_platforms++] = (Platform){700, 80, 80, 20, rgb(80, 160, 80)};
+        platforms[num_platforms++] = (Platform){850, 120, 100, 20, rgb(80, 160, 80)};
+        // Walls
+        platforms[num_platforms++] = (Platform){0, 0, 20, 200, rgb(120, 100, 80)};
+        platforms[num_platforms++] = (Platform){980, 0, 20, 200, rgb(120, 100, 80)};
+        // Create coins
+        coins[num_coins++] = (Coin){150, 140, 0, 0.0f};
+        coins[num_coins++] = (Coin){300, 110, 0, 1.0f};
+        coins[num_coins++] = (Coin){450, 80, 0, 2.0f};
+        coins[num_coins++] = (Coin){600, 120, 0, 3.0f};
+        coins[num_coins++] = (Coin){750, 60, 0, 4.0f};
+        coins[num_coins++] = (Coin){900, 100, 0, 5.0f};
+    }
+
     frame_count++;
     
     // Handle mouse input

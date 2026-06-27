@@ -11,8 +11,6 @@
  *   #define WAGN0_IMPLEMENTATION
  *   #include "wagn0.h"
  * 
- *   void setup() { ... }
- *   void update() { ... }
  *   void draw() { ... }
  */
 
@@ -41,48 +39,20 @@
 #include "posix_shim.h"
 #endif
 
-// ============================================
-// BIT DEPTH CONFIGURATION
-// ============================================
-// Define WAGN0_BPP before including to change pixel format:
-//   #define WAGN0_BPP 8   // RGB332  (uint8)
-//   #define WAGN0_BPP 16  // RGB565  (uint16) — default
-//   #define WAGN0_BPP 32  // RGBA8888 (uint32)
-
-#ifndef WAGN0_BPP
-#define WAGN0_BPP 16
-#endif
-
-#if WAGN0_BPP == 8
-    typedef uint8_t pixel_t;
-#elif WAGN0_BPP == 16
-    typedef uint16_t pixel_t;
-#elif WAGN0_BPP == 32
-    typedef uint32_t pixel_t;
-#else
-    #error "WAGN0_BPP must be 8, 16, or 32"
-#endif
+// pixel_t is always uint32_t. Runtime BPP (8/16/32) is handled by
+// Canvas.bpp and olivec_set_pixel — no compile-time choice needed.
+typedef uint32_t pixel_t;
 
 // ============================================
 // COLOR CONVERSION (input → pixel_t)
 // ============================================
 
 static inline pixel_t rgb(uint8_t r, uint8_t g, uint8_t b) {
-#if WAGN0_BPP == 8
-    return (pixel_t)(((r) & 0xE0) | (((g) & 0xE0) >> 3) | ((b) & 0xC0) >> 6);
-#elif WAGN0_BPP == 16
-    return (pixel_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3));
-#else
-    return (pixel_t)((0xFF << 24) | ((b) << 16) | ((g) << 8) | (r));
-#endif
+    return (uint32_t)((0xFF << 24) | ((b) << 16) | ((g) << 8) | (r));
 }
 
 static inline pixel_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-#if WAGN0_BPP == 32
-    return (pixel_t)(((a) << 24) | ((b) << 16) | ((g) << 8) | (r));
-#else
-    return rgb(r, g, b);  // ignore alpha in 8/16bpp
-#endif
+    return (uint32_t)(((a) << 24) | ((b) << 16) | ((g) << 8) | (r));
 }
 
 // Predefined colors — always pixel_t
@@ -97,6 +67,15 @@ static inline pixel_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
 #define GRAY    rgb(128,128,128)
 #define ORANGE  rgb(255,165,0)
 #define PURPLE  rgb(128,0,128)
+
+// Config defaults — overridden by `wagn0 build` via -D flags
+#ifndef WAGN0_CFG_W
+#define WAGN0_CFG_W 320
+#define WAGN0_CFG_H 240
+#define WAGN0_CFG_BPP 16
+#define WAGN0_CFG_SCALE 2
+#define WAGN0_TITLE "WagnO"
+#endif
 
 // ============================================
 // CORE TYPES
@@ -516,8 +495,8 @@ __attribute__((weak)) void fill_audio(void) {
 // USER FUNCTIONS (implemented by user)
 // ============================================
 
-void setup(void);
-void update(void);
+// Defaults for config — overridden by `wagn0 build` via -DWAGN0_CFG_* flags
+
 void draw(void);
 void mouse_pressed(void);
 void mouse_released(void);
@@ -536,7 +515,6 @@ void key_released(int key);
 // can't satisfy them). Define WAGN0_NO_DEFAULT_CALLBACKS before
 // `#include "wagn0.h"` to opt out when providing your own.
 #ifndef WAGN0_NO_DEFAULT_CALLBACKS
-__attribute__((weak)) void update(void) {}
 __attribute__((weak)) void mouse_pressed(void) {}
 __attribute__((weak)) void mouse_released(void) {}
 __attribute__((weak)) void key_pressed(int key) { (void)key; }
@@ -629,9 +607,19 @@ void draw_triangle3uv(Canvas c,
 static int _wagn0_text_size = 1;
 
 void draw_text(Canvas c, const char* text_str, int x, int y, pixel_t color) {
+    // olivec font only has a-z and 0-9. Convert uppercase to lowercase.
+    char buf[256];
+    const char* src = text_str;
+    char* dst = buf;
+    while (*src && dst - buf < 255) {
+        char ch = *src++;
+        if (ch >= 'A' && ch <= 'Z') ch += 32;  // → lowercase
+        *dst++ = ch;
+    }
+    *dst = 0;
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
                         (size_t)c.stride, c.bpp };
-    olivec_text(oc, text_str, x, y, olivec_default_font,
+    olivec_text(oc, buf, x, y, olivec_default_font,
                 (size_t)_wagn0_text_size, (uint32_t)color);
 }
 
@@ -824,9 +812,7 @@ int wupdate() {
         wagn0.canvas_pixels = w_vram;
         screen.pixels = w_vram; screen.width = 320; screen.height = 240;
         screen.stride = 320; screen.bpp = 16;
-        w_setup("WagnO Game", 320, 240, 16, 4);
-        setup();
-        // Re-read after user's setup()
+        w_setup(WAGN0_TITLE, WAGN0_CFG_W, WAGN0_CFG_H, WAGN0_CFG_BPP, WAGN0_CFG_SCALE);
         wagn0.width = w_width; wagn0.height = w_height;
         wagn0.bpp = w_bpp; wagn0.scale = w_scale;
         screen.width = w_width; screen.height = w_height;
@@ -851,7 +837,6 @@ int wupdate() {
         wagn0.keys_released[i] = !k && wagn0.keys[i];
         wagn0.keys[i] = k;
     }
-    update();
     draw();
     fill_audio();
     // Auto-calculate FPS

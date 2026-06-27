@@ -12,21 +12,20 @@ static char fps_text[16] = "fps: --";
 static uint32_t seed = 12345;
 static uint32_t rnd() { seed = seed * 1103515245 + 12345; return (seed / 65536) % 32768; }
 
-void setup() {
-    w_setup("WagnO - Draw", 320, 240, 16, 4);
-    sheet = img_load(assets_sprite_png_data, sizeof(assets_sprite_png_data));
-
-    for (int i = 0; i < SPRITE_COUNT; i++) {
+void draw() {
+    static int _init = 0;
+    if (!_init) { _init = 1;
+        sheet = img_load(assets_sprite_png_data, sizeof(assets_sprite_png_data));
+        for (int i = 0; i < SPRITE_COUNT; i++) {
         sprites[i].w = sprite_w; sprites[i].h = sprite_h;
         sprites[i].x = (float)(rnd() % (320 - sprite_w));
         sprites[i].y = (float)(rnd() % (240 - sprite_h));
         sprites[i].vx = (float)((rnd() % 4) + 1) * (rnd() % 2 ? -1 : 1);
         sprites[i].vy = (float)((rnd() % 4) + 1) * (rnd() % 2 ? -1 : 1);
+        }
+        last_time = w_ticks;
     }
-    last_time = w_ticks;
-}
 
-void draw() {
     uint32_t now = w_ticks; frame_count++;
     if (now - last_time >= 1000) {
         fps = frame_count; frame_count = 0; last_time = now;

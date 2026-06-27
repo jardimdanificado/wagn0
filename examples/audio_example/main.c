@@ -1,10 +1,6 @@
 #define WAGN0_NO_DEFAULT_CALLBACKS
 #include "wagn0.h"
 
-void setup() {
-    w_setup("WagnO - Audio Synth", 320, 240, 16, 2);
-}
-
 static int active_count(void) {
     int n = 0;
     for (int i = 0; i < WAGN0_MAX_TONES; i++) {
@@ -44,7 +40,6 @@ void key_pressed(int key) {
     if (key == 0x22) play_noise(0.3f, 0.3f);          // 5: noise burst
 }
 
-void update(void) {}
 void mouse_pressed(void) {}
 void mouse_released(void) {}
 void key_released(int key) { (void)key; }

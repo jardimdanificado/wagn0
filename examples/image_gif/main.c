@@ -14,15 +14,15 @@ static inline uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
     return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
 }
 
-void setup() {
-    w_setup("WagnO - GIF", 320, 240, 16, 2);
-    _shim_reset(assets_test_gif_data, sizeof(assets_test_gif_data));
-    gif = gd_open_gif("embedded");
-    if (gif) gd_get_frame(gif);
-    last_ticks = w_ticks;
-}
-
 void draw() {
+    static int _init = 0;
+    if (!_init) { _init = 1;
+        _shim_reset(assets_test_gif_data, sizeof(assets_test_gif_data));
+        gif = gd_open_gif("embedded");
+        if (gif) gd_get_frame(gif);
+        last_ticks = w_ticks;
+    }
+
     clear(screen, BLACK);
     if (!gif) return;
 

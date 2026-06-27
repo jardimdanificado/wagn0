@@ -5,10 +5,6 @@ High-level game development API for Wagnostic.
 ```c
 #include "wagn0.h"
 
-void setup() {
-    w_setup("my wagn0 game", 320, 240, 16, 2);
-}
-
 void draw() {
     clear(screen, BLUE);
     draw_rect(screen, 10, 10, 100, 80, RED);
@@ -18,17 +14,26 @@ void draw() {
 ## Bit Depth
 
 ```c
-#define WAGN0_BPP 32   // 8, 16 (default), or 32
 #include "wagn0.h"
 ```
 
-Pixel type and color macros adapt automatically:
+`pixel_t` is always `uint32_t` (RGBA8888). The canvas BPP is set at
+runtime via `w_setup()` and `wagn0.json`. All drawing functions convert
+to the canvas format automatically.
 
-| BPP | `pixel_t` | `rgb(r,g,b)` returns | Example |
-|-----|-----------|----------------------|---------|
-| 8   | `uint8_t` | RGB332               | `draw_pixel(screen, 10, 10, 0xE0)` |
-| 16  | `uint16_t`| RGB565               | `draw_pixel(screen, 10, 10, 0xF800)` |
-| 32  | `uint32_t`| RGBA8888             | `draw_pixel(screen, 10, 10, 0xFF0000FF)` |
+| `w_setup` BPP | Pixel format | Canvas buffer |
+|---|---|---|
+| 8   | RGB332 | 1 byte per pixel |
+| 16  | RGB565 | 2 bytes per pixel |
+| 32  | RGBA8888 | 4 bytes per pixel |
+
+Colors are always specified as RGBA8888 (`0xAABBGGRR`) and converted
+to the canvas format by the drawing functions:
+
+```c
+draw_pixel(screen, 10, 10, rgb(255, 0, 0));    // red in any BPP
+draw_pixel(screen, 10, 10, 0xFFFF0000);          // same, raw ARGB
+```
 
 ## API
 
@@ -128,8 +133,6 @@ Vec2  vec2(x, y);  vec2_add(a, b);  // etc.
 ## User Callbacks
 
 ```c
-void setup(void);          // once on first frame
-void update(void);         // before draw, every frame
 void draw(void);           // every frame
 void mouse_pressed(void);
 void mouse_released(void);

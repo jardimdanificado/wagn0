@@ -148,8 +148,10 @@ build_wasm() {
     [ -n "$decoder_c_files" ] && needs_shim=1
     [ "$needs_shim" -eq 1 ] && decoder_c_files="$decoder_c_files $shim_c"
 
+    local config_flags="-DWAGN0_TITLE=\"$NAME\" -DWAGN0_CFG_W=$WIDTH -DWAGN0_CFG_H=$HEIGHT -DWAGN0_CFG_BPP=$BPP -DWAGN0_CFG_SCALE=$SCALE"
+
     if ! "$clang" --target=wasm32 -nostdlib -fno-delete-null-pointer-checks \
-        $opt -w $INCLUDE_DIR -I. $decoder_inc \
+        $opt -w $INCLUDE_DIR -I. $decoder_inc $config_flags \
         -Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined \
         -Wl,--initial-memory="${MEMORY}" \
         -o "$target" $src_files $decoder_c_files 2>&1; then
