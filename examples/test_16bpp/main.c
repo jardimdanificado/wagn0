@@ -1,6 +1,6 @@
 #include "wagn0.h"
 
-static Image img;
+static Canvas img;
 
 void setup() {
     w_setup("16BPP Test", 320, 240, 16, 2);
@@ -10,5 +10,5 @@ void setup() {
 void draw() {
     clear(screen, BLACK);
     draw_text(screen, "16BPP MODE (RGB565)", 10, 10, WHITE);
-    if (img.pixels) draw_image(screen, img, (320 - img.width) / 2, (240 - img.height) / 2);
+    if (img.pixels) draw_canvas(screen, img, (320 - img.width) / 2, (240 - img.height) / 2);
 }

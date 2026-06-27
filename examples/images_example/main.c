@@ -1,6 +1,6 @@
 #include "wagn0.h"
 
-static Image img;
+static Canvas img;
 static int pos_x = 100, pos_y = 70;
 static int scale_w = 120, scale_h = 100;
 
@@ -22,5 +22,5 @@ void draw() {
     if (w_gamepad_buttons & W_BTN_R2)    scale_h += 2;
     if (w_gamepad_buttons & W_BTN_A)     { scale_w = img.width; scale_h = img.height; }
 
-    if (img.pixels) draw_image_scaled(screen, img, pos_x, pos_y, scale_w, scale_h);
+    if (img.pixels) draw_canvas_scaled(screen, img, pos_x, pos_y, scale_w, scale_h);
 }

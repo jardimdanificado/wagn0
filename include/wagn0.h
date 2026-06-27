@@ -113,7 +113,6 @@ typedef struct {
 // Rect is defined in wagnostic.h
 
 typedef struct { void* pixels; int width; int height; int stride; uint8_t bpp; } Canvas;
-typedef struct { void* pixels; int width; int height; int bpp; } Image;
 
 // ============================================
 // GLOBAL STATE (managed by WagnO)
@@ -288,6 +287,15 @@ void draw_line(Canvas c, int x1, int y1, int x2, int y2, pixel_t color);
 void draw_pixel(Canvas c, int x, int y, pixel_t color);
 void draw_triangle(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, pixel_t color);
 
+// Pixel access
+pixel_t pixel_at(Canvas c, int x, int y);
+void pixel_set(Canvas c, int x, int y, pixel_t color);
+
+// Texture-mapped triangle (perspective-correct UV)
+void draw_triangle3uv(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3,
+    float tx1, float ty1, float tx2, float ty2, float tx3, float ty3,
+    float z1, float z2, float z3, Canvas texture);
+
 // ============================================
 // TEXT FUNCTIONS
 // ============================================
@@ -300,10 +308,10 @@ int text_width(const char* text);
 // IMAGE FUNCTIONS
 // ============================================
 
-Image img_create(const void* data, int width, int height, int bpp);
-void draw_image(Canvas c, Image img, int x, int y);
-void draw_image_scaled(Canvas c, Image img, int x, int y, int w, int h);
-Image img_load(const uint8_t* data, size_t size);
+Canvas img_create(const void* data, int width, int height, int bpp);
+void draw_canvas(Canvas c, Canvas img, int x, int y);
+void draw_canvas_scaled(Canvas c, Canvas img, int x, int y, int w, int h);
+Canvas img_load(const uint8_t* data, size_t size);
 
 // ============================================
 // AUDIO FUNCTIONS
@@ -588,6 +596,32 @@ void draw_triangle(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, pix
     olivec_triangle(oc, x1, y1, x2, y2, x3, y3, color);
 }
 
+pixel_t pixel_at(Canvas c, int x, int y) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    return (pixel_t)olivec_get_pixel(oc, x, y);
+}
+
+void pixel_set(Canvas c, int x, int y, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    olivec_set_pixel(oc, x, y, (uint32_t)color);
+}
+
+void draw_triangle3uv(Canvas c,
+    int x1, int y1, int x2, int y2, int x3, int y3,
+    float tx1, float ty1, float tx2, float ty2, float tx3, float ty3,
+    float z1, float z2, float z3, Canvas texture)
+{
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    Olivec_Canvas tex = { texture.pixels, (size_t)texture.width, (size_t)texture.height,
+                         (size_t)texture.stride, texture.bpp };
+    olivec_triangle3uv(oc, x1, y1, x2, y2, x3, y3,
+        tx1, ty1, tx2, ty2, tx3, ty3,
+        z1, z2, z3, tex);
+}
+
 // ============================================
 // TEXT FUNCTIONS IMPLEMENTATION
 // ============================================
@@ -615,13 +649,13 @@ int text_width(const char* text_str) {
 // IMAGE FUNCTIONS IMPLEMENTATION
 // ============================================
 
-Image img_create(const void* data, int width, int height, int bpp) {
-    Image img = { (void*)data, width, height, bpp };
+ Canvas img_create(const void* data, int width, int height, int bpp) {
+    Canvas img = { (void*)data, width, height, width, (uint8_t)bpp };
     return img;
-}
+ }
 
 // Helper: read a pixel from any image/Canvas and return RGBA components
-static inline Color _pixel_to_rgba(Image img, int index) {
+static inline Color _pixel_to_rgba(Canvas img, int index) {
     Color c = {0,0,0,255};
     if (img.bpp == 32) {
         uint32_t p = ((uint32_t*)img.pixels)[index];
@@ -644,7 +678,7 @@ static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t 
     else ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
 }
 
-void draw_image(Canvas c, Image img, int x, int y) {
+void draw_canvas(Canvas c, Canvas img, int x, int y) {
     if (!img.pixels) return;
     for (int iy = 0; iy < img.height; iy++) {
         for (int ix = 0; ix < img.width; ix++) {
@@ -657,7 +691,7 @@ void draw_image(Canvas c, Image img, int x, int y) {
     }
 }
 
-void draw_image_scaled(Canvas c, Image img, int x, int y, int w, int h) {
+void draw_canvas_scaled(Canvas c, Canvas img, int x, int y, int w, int h) {
     if (!img.pixels) return;
     for (int iy = 0; iy < h; iy++) {
         for (int ix = 0; ix < w; ix++) {
@@ -680,11 +714,11 @@ void draw_image_scaled(Canvas c, Image img, int x, int y, int w, int h) {
 unsigned lodepng_decode32(unsigned char** out, unsigned* w, unsigned* h,
                          const unsigned char* in, size_t insize);
 
-Image img_load(const uint8_t* data, size_t size) {
+Canvas img_load(const uint8_t* data, size_t size) {
     uint8_t* decoded = 0;
     unsigned w, h;
-    if (lodepng_decode32(&decoded, &w, &h, data, size)) return (Image){0};
-    return (Image){ .pixels = decoded, .width = (int)w, .height = (int)h, .bpp = 32 };
+    if (lodepng_decode32(&decoded, &w, &h, data, size)) return (Canvas){0};
+    return (Canvas){ .pixels = decoded, .width = (int)w, .height = (int)h, .stride = (int)w, .bpp = 32 };
 }
 #endif
 

@@ -48,6 +48,12 @@ draw_ellipse(screen, x, y, w, h, color);            // filled ellipse
 draw_line(screen, x1, y1, x2, y2, color);           // line
 draw_pixel(screen, x, y, color);                   // single pixel
 draw_triangle(screen, x1,y1, x2,y2, x3,y3, color); // filled triangle
+draw_triangle3uv(screen, x1,y1, x2,y2, x3,y3,      // texture-mapped
+    tx1,ty1, tx2,ty2, tx3,ty3, z1,z2,z3, tex);
+
+// Pixel access
+pixel_t c = pixel_at(canvas, x, y);                // read pixel
+pixel_set(canvas, x, y, color);                    // write pixel
 ```
 
 ### Text
@@ -61,11 +67,15 @@ int text_width(const char*);
 ### Images
 
 ```c
-Image img = img_load(data, size);           // decode PNG asset → Image
-Image img = img_create(data, w, h, bpp);    // create from raw pixels
-draw_image(screen, img, x, y);
-draw_image_scaled(screen, img, x, y, w, h);
+Canvas img = img_load(data, size);          // decode PNG asset → Canvas
+Canvas img = img_create(data, w, h, bpp);   // create from raw pixels
+draw_canvas(screen, img, x, y);             // with BPP conversion
+draw_canvas_scaled(screen, img, x, y, w, h); // scaled, with BPP conversion
 ```
+
+Images loaded with `img_load()` or created with `img_create()` return a
+`Canvas` with `stride = width`. They can be used anywhere a Canvas is
+expected — sub-canvases, blitting, or direct pixel access.
 
 ### Audio (synth)
 
@@ -142,8 +152,9 @@ assets/
 ```
 
 ```c
-Image icon = img_load(assets_sprites_icon_png_data,
-                      sizeof(assets_sprites_icon_png_data));
+Canvas icon = img_load(assets_sprites_icon_png_data,
+                       sizeof(assets_sprites_icon_png_data));
+draw_canvas(screen, icon, 10, 10);
 Wagn0Audio sfx = wav_decode(assets_sfx_jump_wav_data,
                             sizeof(assets_sfx_jump_wav_data));
 ```
@@ -180,3 +191,16 @@ templates/    project skeleton for `wagn0 new`
 | `wagn0 build` | Scan `assets/`, generate `assets.h`, compile to WASM |
 | `wagn0 run [--runner native\|sm]` | Run with host |
 | `wagn0 dev [--runner native\|sm]` | Watch + rebuild + run |
+
+## Credits
+
+wagn0 uses several third-party libraries. Many thanks to their authors:
+
+| Library | Author | Link |
+|---|---|---|
+| olive.c | tsoding | https://github.com/tsoding/olive.c |
+| lodepng | Lode Vandevenne | https://github.com/lvandeve/lodepng |
+| stb_vorbis | Sean Barrett | https://github.com/nothings/stb |
+| dr_wav, dr_mp3 | David Reid (mackron) | https://github.com/mackron/dr_libs |
+| gifdec | lecram | https://github.com/lecram/gifdec |
+| wasm3 | Volodymyr Shymanskyy | https://github.com/wasm3/wasm3 |

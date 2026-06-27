@@ -1,6 +1,6 @@
 #include "wagn0.h"
 
-static Image sheet;
+static Canvas sheet;
 static int sprite_w = 24, sprite_h = 24;
 
 typedef struct { float x, y, vx, vy; int w, h; } Sprite;
@@ -45,7 +45,7 @@ void draw() {
         sprites[i].x += sprites[i].vx; sprites[i].y += sprites[i].vy;
         if (sprites[i].x <= 0 || sprites[i].x + sprites[i].w >= 320) sprites[i].vx *= -1;
         if (sprites[i].y <= 0 || sprites[i].y + sprites[i].h >= 240) sprites[i].vy *= -1;
-        draw_image_scaled(screen, sheet, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h);
+        draw_canvas_scaled(screen, sheet, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h);
     }
 
 }
