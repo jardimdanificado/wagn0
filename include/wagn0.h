@@ -22,6 +22,32 @@
 #define WAGNOSTIC_IMPLEMENTATION
 #include "wagnostic.h"
 
+// Wagnostic new API: ROM must provide a WagnosticState struct
+static struct {
+    WagnosticState state;
+    uint8_t vram[WAGN0_CFG_W * WAGN0_CFG_H * 4]; // Max 32bpp
+    uint8_t audio_buffer[16384];
+} _wagn0_rom;
+
+#define w_width _wagn0_rom.state.width
+#define w_height _wagn0_rom.state.height
+#define w_bpp _wagn0_rom.state.bpp
+#define w_scale _wagn0_rom.state.scale
+#define w_mouse_x _wagn0_rom.state.mouse_x
+#define w_mouse_y _wagn0_rom.state.mouse_y
+#define w_mouse_buttons _wagn0_rom.state.mouse_buttons
+#define w_keys _wagn0_rom.state.keys
+#define w_ticks _wagn0_rom.state.ticks
+#define w_target_fps _wagn0_rom.state.target_fps
+#define w_audio_size _wagn0_rom.state.audio_size
+#define w_audio_sample_rate _wagn0_rom.state.audio_sample_rate
+#define w_audio_bpp _wagn0_rom.state.audio_bpp
+#define w_audio_channels _wagn0_rom.state.audio_channels
+#define w_audio_write _wagn0_rom.state.audio_write
+#define w_audio_read _wagn0_rom.state.audio_read
+#define w_vram _wagn0_rom.vram
+#define w_audio_buffer _wagn0_rom.audio_buffer
+
 // Auto-include generated assets.h (created by `wagn0 asset`).
 // Stub is generated when no assets/ exists, so the include always works.
 #if defined(__has_include)
@@ -809,10 +835,12 @@ int wupdate() {
         wagn0.mouse_pressed = false; wagn0.mouse_released = false;
         wagn0.mouse_down = false;
         // Initialize screen canvas
+        _wagn0_rom.state.vram_offset = sizeof(WagnosticState);
+        _wagn0_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagn0_rom.vram);
         wagn0.canvas_pixels = w_vram;
         screen.pixels = w_vram; screen.width = 320; screen.height = 240;
         screen.stride = 320; screen.bpp = 16;
-        w_setup(WAGN0_TITLE, WAGN0_CFG_W, WAGN0_CFG_H, WAGN0_CFG_BPP, WAGN0_CFG_SCALE);
+        w_setup(&_wagn0_rom.state, WAGN0_TITLE, WAGN0_CFG_W, WAGN0_CFG_H, WAGN0_CFG_BPP, WAGN0_CFG_SCALE);
         wagn0.width = w_width; wagn0.height = w_height;
         wagn0.bpp = w_bpp; wagn0.scale = w_scale;
         screen.width = w_width; screen.height = w_height;
@@ -854,8 +882,8 @@ int wupdate() {
         if (wagn0.keys_pressed[i]) key_pressed(i);
         if (wagn0.keys_released[i]) key_released(i);
     }
-    w_redraw();
-    return 1;
+    w_redraw(&_wagn0_rom.state);
+    return (int)&_wagn0_rom.state;
 }
 
 #endif // WAGN0_H

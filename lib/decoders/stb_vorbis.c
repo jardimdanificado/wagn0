@@ -3127,16 +3127,18 @@ static int vorbis_decode_initial(vorb *f, int *p_left_start, int *p_left_end, in
    int i, n, prev, next, window_center;
    f->channel_buffer_start = f->channel_buffer_end = 0;
 
-  retry:
-   if (f->eof) return FALSE;
-   if (!maybe_start_packet(f))
-      return FALSE;
-   // check packet type
-   if (get_bits(f,1) != 0) {
-      if (IS_PUSH_MODE(f))
-         return error(f,VORBIS_bad_packet_type);
-      while (EOP != get8_packet(f));
-      goto retry;
+   for (;;) {
+      if (f->eof) return FALSE;
+      if (!maybe_start_packet(f))
+         return FALSE;
+      // check packet type
+      if (get_bits(f,1) != 0) {
+         if (IS_PUSH_MODE(f))
+            return error(f,VORBIS_bad_packet_type);
+         while (EOP != get8_packet(f));
+         continue;
+      }
+      break;
    }
 
    if (f->alloc.alloc_buffer)
@@ -3203,7 +3205,9 @@ static int vorbis_decode_packet_rest(vorb *f, int *len, Mode *m, int left_start,
          return error(f, VORBIS_invalid_stream);
       } else {
          Floor1 *g = &f->floor_config[floor].floor1;
-         if (get_bits(f, 1)) {
+         int has_floor_data = get_bits(f, 1);
+         int decode_error = 0;
+         if (has_floor_data) {
             short *finalY;
             uint8 step2_flag[256];
             static int range_list[4] = { 256, 128, 86, 64 };
@@ -3234,51 +3238,53 @@ static int vorbis_decode_packet_rest(vorb *f, int *len, Mode *m, int left_start,
                      finalY[offset++] = 0;
                }
             }
-            if (f->valid_bits == INVALID_BITS) goto error; // behavior according to spec
-            step2_flag[0] = step2_flag[1] = 1;
-            for (j=2; j < g->values; ++j) {
-               int low, high, pred, highroom, lowroom, room, val;
-               low = g->neighbors[j][0];
-               high = g->neighbors[j][1];
-               //neighbors(g->Xlist, j, &low, &high);
-               pred = predict_point(g->Xlist[j], g->Xlist[low], g->Xlist[high], finalY[low], finalY[high]);
-               val = finalY[j];
-               highroom = range - pred;
-               lowroom = pred;
-               if (highroom < lowroom)
-                  room = highroom * 2;
-               else
-                  room = lowroom * 2;
-               if (val) {
-                  step2_flag[low] = step2_flag[high] = 1;
-                  step2_flag[j] = 1;
-                  if (val >= room)
-                     if (highroom > lowroom)
-                        finalY[j] = val - lowroom + pred;
-                     else
-                        finalY[j] = pred - val + highroom - 1;
+            if (f->valid_bits == INVALID_BITS) decode_error = 1;
+            if (!decode_error) {
+               step2_flag[0] = step2_flag[1] = 1;
+               for (j=2; j < g->values; ++j) {
+                  int low, high, pred, highroom, lowroom, room, val;
+                  low = g->neighbors[j][0];
+                  high = g->neighbors[j][1];
+                  //neighbors(g->Xlist, j, &low, &high);
+                  pred = predict_point(g->Xlist[j], g->Xlist[low], g->Xlist[high], finalY[low], finalY[high]);
+                  val = finalY[j];
+                  highroom = range - pred;
+                  lowroom = pred;
+                  if (highroom < lowroom)
+                     room = highroom * 2;
                   else
-                     if (val & 1)
-                        finalY[j] = pred - ((val+1)>>1);
+                     room = lowroom * 2;
+                  if (val) {
+                     step2_flag[low] = step2_flag[high] = 1;
+                     step2_flag[j] = 1;
+                     if (val >= room)
+                        if (highroom > lowroom)
+                           finalY[j] = val - lowroom + pred;
+                        else
+                           finalY[j] = pred - val + highroom - 1;
                      else
-                        finalY[j] = pred + (val>>1);
-               } else {
-                  step2_flag[j] = 0;
-                  finalY[j] = pred;
+                        if (val & 1)
+                           finalY[j] = pred - ((val+1)>>1);
+                        else
+                           finalY[j] = pred + (val>>1);
+                  } else {
+                     step2_flag[j] = 0;
+                     finalY[j] = pred;
+                  }
                }
-            }
 
 #ifdef STB_VORBIS_NO_DEFER_FLOOR
-            do_floor(f, map, i, n, f->floor_buffers[i], finalY, step2_flag);
+               do_floor(f, map, i, n, f->floor_buffers[i], finalY, step2_flag);
 #else
-            // defer final floor computation until _after_ residue
-            for (j=0; j < g->values; ++j) {
-               if (!step2_flag[j])
-                  finalY[j] = -1;
-            }
+               // defer final floor computation until _after_ residue
+               for (j=0; j < g->values; ++j) {
+                  if (!step2_flag[j])
+                     finalY[j] = -1;
+               }
 #endif
-         } else {
-           error:
+            }
+         }
+         if (!has_floor_data || decode_error) {
             zero_channel[i] = TRUE;
          }
          // So we just defer everything else to later
@@ -3870,35 +3876,37 @@ static int start_decoder(vorb *f)
 
 #ifndef STB_VORBIS_DIVIDES_IN_CODEBOOK
          if (c->lookup_type == 1) {
-            int len, sparse = c->sparse;
-            float last=0;
-            // pre-expand the lookup1-style multiplicands, to avoid a divide in the inner loop
-            if (sparse) {
-               if (c->sorted_entries == 0) goto skip;
-               c->multiplicands = (codetype *) setup_malloc(f, sizeof(c->multiplicands[0]) * c->sorted_entries * c->dimensions);
-            } else
-               c->multiplicands = (codetype *) setup_malloc(f, sizeof(c->multiplicands[0]) * c->entries        * c->dimensions);
-            if (c->multiplicands == NULL) { setup_temp_free(f,mults,sizeof(mults[0])*c->lookup_values); return error(f, VORBIS_outofmem); }
-            len = sparse ? c->sorted_entries : c->entries;
-            for (j=0; j < len; ++j) {
-               unsigned int z = sparse ? c->sorted_values[j] : j;
-               unsigned int div=1;
-               for (k=0; k < c->dimensions; ++k) {
-                  int off = (z / div) % c->lookup_values;
-                  float val = mults[off]*c->delta_value + c->minimum_value + last;
-                  c->multiplicands[j*c->dimensions + k] = val;
-                  if (c->sequence_p)
-                     last = val;
-                  if (k+1 < c->dimensions) {
-                     if (div > UINT_MAX / (unsigned int) c->lookup_values) {
-                        setup_temp_free(f, mults,sizeof(mults[0])*c->lookup_values);
-                        return error(f, VORBIS_invalid_setup);
+            do {
+               int len, sparse = c->sparse;
+               float last=0;
+               // pre-expand the lookup1-style multiplicands, to avoid a divide in the inner loop
+               if (sparse) {
+                  if (c->sorted_entries == 0) break;
+                  c->multiplicands = (codetype *) setup_malloc(f, sizeof(c->multiplicands[0]) * c->sorted_entries * c->dimensions);
+               } else
+                  c->multiplicands = (codetype *) setup_malloc(f, sizeof(c->multiplicands[0]) * c->entries        * c->dimensions);
+               if (c->multiplicands == NULL) { setup_temp_free(f,mults,sizeof(mults[0])*c->lookup_values); return error(f, VORBIS_outofmem); }
+               len = sparse ? c->sorted_entries : c->entries;
+               for (j=0; j < len; ++j) {
+                  unsigned int z = sparse ? c->sorted_values[j] : j;
+                  unsigned int div=1;
+                  for (k=0; k < c->dimensions; ++k) {
+                     int off = (z / div) % c->lookup_values;
+                     float val = mults[off]*c->delta_value + c->minimum_value + last;
+                     c->multiplicands[j*c->dimensions + k] = val;
+                     if (c->sequence_p)
+                        last = val;
+                     if (k+1 < c->dimensions) {
+                        if (div > UINT_MAX / (unsigned int) c->lookup_values) {
+                           setup_temp_free(f, mults,sizeof(mults[0])*c->lookup_values);
+                           return error(f, VORBIS_invalid_setup);
+                        }
+                        div *= c->lookup_values;
                      }
-                     div *= c->lookup_values;
                   }
                }
-            }
-            c->lookup_type = 2;
+               c->lookup_type = 2;
+            } while(0);
          }
          else
 #endif
@@ -3914,9 +3922,6 @@ static int start_decoder(vorb *f)
                   last = val;
             }
          }
-#ifndef STB_VORBIS_DIVIDES_IN_CODEBOOK
-        skip:;
-#endif
          setup_temp_free(f, mults, sizeof(mults[0])*c->lookup_values);
 
          CHECK(f);
@@ -4704,6 +4709,7 @@ static int seek_to_sample_coarse(stb_vorbis *f, uint32 sample_number)
    uint32 delta, stream_length, padding, last_sample_limit;
    double offset = 0.0, bytes_per_sample = 0.0;
    int probe = 0;
+   int success = 0;
 
    // find the last page and validate the target sample
    stream_length = stb_vorbis_stream_length_in_samples(f);
@@ -4719,136 +4725,144 @@ static int seek_to_sample_coarse(stb_vorbis *f, uint32 sample_number)
    else
       last_sample_limit = sample_number - padding;
 
-   left = f->p_first;
-   while (left.last_decoded_sample == ~0U) {
-      // (untested) the first page does not have a 'last_decoded_sample'
-      set_file_offset(f, left.page_end);
-      if (!get_seek_page_info(f, &left)) goto error;
-   }
-
-   right = f->p_last;
-   assert(right.last_decoded_sample != ~0U);
-
-   // starting from the start is handled differently
-   if (last_sample_limit <= left.last_decoded_sample) {
-      if (stb_vorbis_seek_start(f)) {
-         if (f->current_loc > sample_number)
-            return error(f, VORBIS_seek_failed);
-         return 1;
-      }
-      return 0;
-   }
-
-   while (left.page_end != right.page_start) {
-      assert(left.page_end < right.page_start);
-      // search range in bytes
-      delta = right.page_start - left.page_end;
-      if (delta <= 65536) {
-         // there's only 64K left to search - handle it linearly
+   do {
+      left = f->p_first;
+      while (left.last_decoded_sample == ~0U) {
+         // (untested) the first page does not have a 'last_decoded_sample'
          set_file_offset(f, left.page_end);
-      } else {
-         if (probe < 2) {
-            if (probe == 0) {
-               // first probe (interpolate)
-               double data_bytes = right.page_end - left.page_start;
-               bytes_per_sample = data_bytes / right.last_decoded_sample;
-               offset = left.page_start + bytes_per_sample * (last_sample_limit - left.last_decoded_sample);
+         if (!get_seek_page_info(f, &left)) break;
+      }
+      if (left.last_decoded_sample == ~0U) break;
+
+      right = f->p_last;
+      assert(right.last_decoded_sample != ~0U);
+
+      // starting from the start is handled differently
+      if (last_sample_limit <= left.last_decoded_sample) {
+         if (stb_vorbis_seek_start(f)) {
+            if (f->current_loc > sample_number)
+               return error(f, VORBIS_seek_failed);
+            return 1;
+         }
+         return 0;
+      }
+
+      while (left.page_end != right.page_start) {
+         assert(left.page_end < right.page_start);
+         // search range in bytes
+         delta = right.page_start - left.page_end;
+         if (delta <= 65536) {
+            // there's only 64K left to search - handle it linearly
+            set_file_offset(f, left.page_end);
+         } else {
+            if (probe < 2) {
+               if (probe == 0) {
+                  // first probe (interpolate)
+                  double data_bytes = right.page_end - left.page_start;
+                  bytes_per_sample = data_bytes / right.last_decoded_sample;
+                  offset = left.page_start + bytes_per_sample * (last_sample_limit - left.last_decoded_sample);
+               } else {
+                  // second probe (try to bound the other side)
+                  double error = ((double) last_sample_limit - mid.last_decoded_sample) * bytes_per_sample;
+                  if (error >= 0 && error <  8000) error =  8000;
+                  if (error <  0 && error > -8000) error = -8000;
+                  offset += error * 2;
+               }
+
+               // ensure the offset is valid
+               if (offset < left.page_end)
+                  offset = left.page_end;
+               if (offset > right.page_start - 65536)
+                  offset = right.page_start - 65536;
+
+               set_file_offset(f, (unsigned int) offset);
             } else {
-               // second probe (try to bound the other side)
-               double error = ((double) last_sample_limit - mid.last_decoded_sample) * bytes_per_sample;
-               if (error >= 0 && error <  8000) error =  8000;
-               if (error <  0 && error > -8000) error = -8000;
-               offset += error * 2;
+               // binary search for large ranges (offset by 32K to ensure
+               // we don't hit the right page)
+               set_file_offset(f, left.page_end + (delta / 2) - 32768);
             }
 
-            // ensure the offset is valid
-            if (offset < left.page_end)
-               offset = left.page_end;
-            if (offset > right.page_start - 65536)
-               offset = right.page_start - 65536;
-
-            set_file_offset(f, (unsigned int) offset);
-         } else {
-            // binary search for large ranges (offset by 32K to ensure
-            // we don't hit the right page)
-            set_file_offset(f, left.page_end + (delta / 2) - 32768);
+            if (!vorbis_find_page(f, NULL, NULL)) break;
          }
 
-         if (!vorbis_find_page(f, NULL, NULL)) goto error;
+         for (;;) {
+            if (!get_seek_page_info(f, &mid)) break;
+            if (mid.last_decoded_sample != ~0U) break;
+            // (untested) no frames end on this page
+            set_file_offset(f, mid.page_end);
+            assert(mid.page_start < right.page_start);
+         }
+         if (mid.last_decoded_sample == ~0U) break;
+
+         // if we've just found the last page again then we're in a tricky file,
+         // and we're close enough (if it wasn't an interpolation probe).
+         if (mid.page_start == right.page_start) {
+            if (probe >= 2 || delta <= 65536)
+               break;
+         } else {
+            if (last_sample_limit < mid.last_decoded_sample)
+               right = mid;
+            else
+               left = mid;
+         }
+
+         ++probe;
       }
+      if (left.page_end != right.page_start) break;
+
+      // seek back to start of the last packet
+      page_start = left.page_start;
+      set_file_offset(f, page_start);
+      if (!start_page(f)) break;
+      end_pos = f->end_seg_with_known_loc;
+      assert(end_pos >= 0);
 
       for (;;) {
-         if (!get_seek_page_info(f, &mid)) goto error;
-         if (mid.last_decoded_sample != ~0U) break;
-         // (untested) no frames end on this page
-         set_file_offset(f, mid.page_end);
-         assert(mid.page_start < right.page_start);
-      }
+         for (i = end_pos; i > 0; --i)
+            if (f->segments[i-1] != 255)
+               break;
 
-      // if we've just found the last page again then we're in a tricky file,
-      // and we're close enough (if it wasn't an interpolation probe).
-      if (mid.page_start == right.page_start) {
-         if (probe >= 2 || delta <= 65536)
-            break;
-      } else {
-         if (last_sample_limit < mid.last_decoded_sample)
-            right = mid;
-         else
-            left = mid;
-      }
+         start_seg_with_known_loc = i;
 
-      ++probe;
-   }
-
-   // seek back to start of the last packet
-   page_start = left.page_start;
-   set_file_offset(f, page_start);
-   if (!start_page(f)) return error(f, VORBIS_seek_failed);
-   end_pos = f->end_seg_with_known_loc;
-   assert(end_pos >= 0);
-
-   for (;;) {
-      for (i = end_pos; i > 0; --i)
-         if (f->segments[i-1] != 255)
+         if (start_seg_with_known_loc > 0 || !(f->page_flag & PAGEFLAG_continued_packet))
             break;
 
-      start_seg_with_known_loc = i;
+         // (untested) the final packet begins on an earlier page
+         if (!go_to_page_before(f, page_start))
+            break;
 
-      if (start_seg_with_known_loc > 0 || !(f->page_flag & PAGEFLAG_continued_packet))
-         break;
+         page_start = stb_vorbis_get_file_offset(f);
+         if (!start_page(f)) break;
+         end_pos = f->segment_count - 1;
+      }
+      if (start_seg_with_known_loc <= 0 && (f->page_flag & PAGEFLAG_continued_packet)) break;
 
-      // (untested) the final packet begins on an earlier page
-      if (!go_to_page_before(f, page_start))
-         goto error;
+      // prepare to start decoding
+      f->current_loc_valid = FALSE;
+      f->last_seg = FALSE;
+      f->valid_bits = 0;
+      f->packet_bytes = 0;
+      f->bytes_in_seg = 0;
+      f->previous_length = 0;
+      f->next_seg = start_seg_with_known_loc;
 
-      page_start = stb_vorbis_get_file_offset(f);
-      if (!start_page(f)) goto error;
-      end_pos = f->segment_count - 1;
-   }
+      for (i = 0; i < start_seg_with_known_loc; i++)
+         skip(f, f->segments[i]);
 
-   // prepare to start decoding
-   f->current_loc_valid = FALSE;
-   f->last_seg = FALSE;
-   f->valid_bits = 0;
-   f->packet_bytes = 0;
-   f->bytes_in_seg = 0;
-   f->previous_length = 0;
-   f->next_seg = start_seg_with_known_loc;
+      // start decoding (optimizable - this frame is generally discarded)
+      if (!vorbis_pump_first_frame(f))
+         return 0;
+      if (f->current_loc > sample_number)
+         return error(f, VORBIS_seek_failed);
+      success = 1;
+   } while(0);
 
-   for (i = 0; i < start_seg_with_known_loc; i++)
-      skip(f, f->segments[i]);
-
-   // start decoding (optimizable - this frame is generally discarded)
-   if (!vorbis_pump_first_frame(f))
-      return 0;
-   if (f->current_loc > sample_number)
+   if (!success) {
+      // try to restore the file to a valid state
+      stb_vorbis_seek_start(f);
       return error(f, VORBIS_seek_failed);
+   }
    return 1;
-
-error:
-   // try to restore the file to a valid state
-   stb_vorbis_seek_start(f);
-   return error(f, VORBIS_seek_failed);
 }
 
 // the same as vorbis_decode_initial, but without advancing

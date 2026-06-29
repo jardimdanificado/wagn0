@@ -3,12 +3,29 @@
 
 /**
  * Wagnostic - WASM Multimedia Runtime
- * 
- * API based on named globals. ROMs export globals that the host reads/writes.
- * 
+ *
+ * API based on a single state struct. ROMs allocate a WagnosticState
+ * somewhere in their linear memory and return its address from wupdate().
+ * The host dereferences that pointer to read/write state.
+ *
  * Usage:
- *   #define WAGNOSTIC_IMPLEMENTATION
  *   #include "wagnostic.h"
+ *
+ *   static struct {
+ *       WagnosticState state;
+ *       uint8_t vram[320 * 240 * 2];
+ *   } rom;
+ *
+ *   int wupdate() {
+ *       rom.state.width = 320;
+ *       rom.state.height = 240;
+ *       rom.state.bpp = 16;
+ *       rom.state.vram_offset = (uint32_t)((uint8_t*)rom.vram - (uint8_t*)&rom.state);
+ *       // ... draw to rom.vram ...
+ *       rom.state.dirty_count = 1;
+ *       rom.state.dirty_rects[0] = (Rect){0, 0, 320, 240};
+ *       return (int)&rom.state;
+ *   }
  */
 
 #include <stdint.h>
@@ -52,89 +69,98 @@ typedef struct {
 #define W_RGB332(r, g, b) (uint8_t)(((r) & 0xE0) | (((g) & 0xE0) >> 3) | (((b) & 0xC0) >> 6))
 
 // ============================================
-// DIRTY RECTANGLE CONSTANTS
+// STATE STRUCT
 // ============================================
 
 #define W_MAX_DIRTY_RECTS 32
 
+typedef struct {
+    // --- Screen Configuration (ROM writes, Host reads) ---
+    uint32_t width;
+    uint32_t height;
+    uint32_t bpp;
+    uint32_t scale;
+    char title[128];
+
+    // --- Dirty Rectangles (ROM writes, Host reads) ---
+    uint32_t dirty_count;
+    Rect dirty_rects[W_MAX_DIRTY_RECTS];
+
+    // --- Input (Host writes, ROM reads) ---
+    int32_t mouse_x;
+    int32_t mouse_y;
+    uint32_t mouse_buttons;
+    int32_t mouse_wheel;
+    uint8_t keys[256];
+    uint32_t gamepad_buttons;
+
+    // --- Timing (Host writes, ROM reads) ---
+    uint32_t ticks;
+
+    // --- Framerate control (ROM writes, Host reads) ---
+    uint32_t target_fps;
+
+    // --- Audio (ROM writes, Host reads) ---
+    uint32_t audio_size;
+    uint32_t audio_sample_rate;
+    uint32_t audio_bpp;
+    uint32_t audio_channels;
+    uint32_t audio_write;
+    uint32_t audio_read;
+    uint32_t audio_underrun;
+    uint32_t audio_overrun;
+
+    // --- Buffer offsets (from state base address) ---
+    // ROM sets these to point to separately-allocated buffers.
+    // If 0, the host treats the buffer as missing.
+    uint32_t vram_offset;
+    uint32_t audio_buffer_offset;
+
+    // --- Reserved padding (brings total struct size to 1024 bytes) ---
+    uint8_t reserved[40];
+} WagnosticState;
+
 // ============================================
-// GLOBAL DECLARATIONS
+// BUFFER ACCESS MACROS
 // ============================================
 
-// --- Screen Configuration (ROM writes, Host reads) ---
-extern uint32_t w_width;
-extern uint32_t w_height;
-extern uint32_t w_bpp;
-extern uint32_t w_scale;
-extern char w_title[128];
-
-// --- VRAM (ROM writes, Host reads) ---
-extern uint8_t w_vram[];
-
-// --- Dirty Rectangles (ROM writes, Host reads) ---
-extern uint32_t w_dirty_count;
-extern Rect w_dirty_rects[W_MAX_DIRTY_RECTS];
-
-// --- Input (Host writes, ROM reads) ---
-extern int32_t w_mouse_x;
-extern int32_t w_mouse_y;
-extern uint32_t w_mouse_buttons;
-extern int32_t w_mouse_wheel;
-extern uint8_t w_keys[256];
-extern uint32_t w_gamepad_buttons;
-
-// --- Timing (Host writes, ROM reads) ---
-extern uint32_t w_ticks;
-
-// --- Audio (ROM writes, Host reads) ---
-extern uint32_t w_audio_size;
-extern uint32_t w_audio_sample_rate;
-extern uint32_t w_audio_bpp;
-extern uint32_t w_audio_channels;
-extern uint32_t w_audio_write;
-extern uint32_t w_audio_read;
-extern uint8_t w_audio_buffer[];
-extern uint32_t w_audio_underrun;
-extern uint32_t w_audio_overrun;
-
-// --- Framerate control (ROM writes, Host reads) ---
-// Host calls wupdate() at this rate. 0 = no limit (default).
-extern uint32_t w_target_fps;
+#define W_VRAM(s)       ((uint8_t*)(s) + (s)->vram_offset)
+#define W_AUDIO_BUF(s)  ((uint8_t*)(s) + (s)->audio_buffer_offset)
 
 // ============================================
 // HELPER FUNCTIONS (inline)
 // ============================================
 
-static inline void w_setup(const char* title, int width, int height, int bpp, int scale) {
-    w_width = width;
-    w_height = height;
-    w_bpp = bpp;
-    w_scale = scale;
+static inline void w_setup(WagnosticState *s, const char* title, int width, int height, int bpp, int scale) {
+    s->width = (uint32_t)width;
+    s->height = (uint32_t)height;
+    s->bpp = (uint32_t)bpp;
+    s->scale = (uint32_t)scale;
     if (title) {
         int i = 0;
         while (title[i] && i < 127) {
-            w_title[i] = title[i];
+            s->title[i] = title[i];
             i++;
         }
-        w_title[i] = '\0';
+        s->title[i] = '\0';
     }
 }
 
-static inline void w_redraw() {
-    w_dirty_count = 1;
-    w_dirty_rects[0].x = 0;
-    w_dirty_rects[0].y = 0;
-    w_dirty_rects[0].w = w_width;
-    w_dirty_rects[0].h = w_height;
+static inline void w_redraw(WagnosticState *s) {
+    s->dirty_count = 1;
+    s->dirty_rects[0].x = 0;
+    s->dirty_rects[0].y = 0;
+    s->dirty_rects[0].w = (int)s->width;
+    s->dirty_rects[0].h = (int)s->height;
 }
 
-static inline void w_redraw_rect(int x, int y, int w, int h) {
-    if (w_dirty_count < W_MAX_DIRTY_RECTS) {
-        w_dirty_rects[w_dirty_count].x = x;
-        w_dirty_rects[w_dirty_count].y = y;
-        w_dirty_rects[w_dirty_count].w = w;
-        w_dirty_rects[w_dirty_count].h = h;
-        w_dirty_count++;
+static inline void w_redraw_rect(WagnosticState *s, int x, int y, int w, int h) {
+    if (s->dirty_count < W_MAX_DIRTY_RECTS) {
+        s->dirty_rects[s->dirty_count].x = x;
+        s->dirty_rects[s->dirty_count].y = y;
+        s->dirty_rects[s->dirty_count].w = w;
+        s->dirty_rects[s->dirty_count].h = h;
+        s->dirty_count++;
     }
 }
 
@@ -142,55 +168,8 @@ static inline void w_redraw_rect(int x, int y, int w, int h) {
 // CONVENIENCE MACROS
 // ============================================
 
-#define W_KEY_DOWN(scancode) (w_keys[scancode] != 0)
-#define W_MOUSE_LEFT() ((w_mouse_buttons & 1) != 0)
-#define W_MOUSE_RIGHT() ((w_mouse_buttons & 2) != 0)
-
-// ============================================
-// IMPLEMENTATION (only included once)
-// ============================================
-
-#ifdef WAGNOSTIC_IMPLEMENTATION
-
-// --- Screen ---
-uint32_t w_width = 320;
-uint32_t w_height = 240;
-uint32_t w_bpp = 16;
-uint32_t w_scale = 4;
-char w_title[128] = "Wagnostic";
-
-// --- VRAM ---
-uint8_t w_vram[320 * 240 * 4];
-
-// --- Dirty Rectangles ---
-uint32_t w_dirty_count = 0;
-Rect w_dirty_rects[W_MAX_DIRTY_RECTS];
-
-// --- Input ---
-int32_t w_mouse_x = 0;
-int32_t w_mouse_y = 0;
-uint32_t w_mouse_buttons = 0;
-int32_t w_mouse_wheel = 0;
-uint8_t w_keys[256] = {0};
-uint32_t w_gamepad_buttons = 0;
-
-// --- Timing ---
-uint32_t w_ticks = 0;
-
-// --- Framerate ---
-uint32_t w_target_fps = 0;
-
-// --- Audio ---
-uint32_t w_audio_size = 0;
-uint32_t w_audio_sample_rate = 44100;
-uint32_t w_audio_bpp = 2;
-uint32_t w_audio_channels = 1;
-uint32_t w_audio_write = 0;
-uint32_t w_audio_read = 0;
-uint32_t w_audio_underrun = 0;
-uint32_t w_audio_overrun = 0;
-uint8_t w_audio_buffer[16384];
-
-#endif // WAGNOSTIC_IMPLEMENTATION
+#define W_KEY_DOWN(s, scancode) ((s)->keys[scancode] != 0)
+#define W_MOUSE_LEFT(s) (((s)->mouse_buttons & 1) != 0)
+#define W_MOUSE_RIGHT(s) (((s)->mouse_buttons & 2) != 0)
 
 #endif // WAGNOSTIC_H
