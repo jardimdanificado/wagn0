@@ -107,8 +107,10 @@ build_wasm() {
     [ "$release" = "release" ] && opt="-O3"
 
     info "Compiling ${NAME} -> ${target}"
-    # Auto-generate assets.h
-    asset_run
+    info "Compiling ${NAME} -> ${target}"
+    
+    # Delete old assets.h if exists
+    [ -f assets.h ] && rm assets.h
 
     # Detect which decoders are needed and add their source + include paths
     local decoder_c_files=""
@@ -165,6 +167,25 @@ build_wasm() {
         local kb=$((size / 1024))
         local dec=$(((size % 1024) * 10 / 1024))
         ok "${target} (${kb}.${dec} KB)"
+        
+        # Package into .wag if assets exist
+        if [ -d "assets" ] && [ -n "$(ls -A assets 2>/dev/null)" ]; then
+            local wag_target="${NAME}.wag"
+            local tmpdir
+            tmpdir=$(mktemp -d)
+            cp "$target" "$tmpdir/main.wasm"
+            cp -r assets/* "$tmpdir/"
+            (cd "$tmpdir" && zip -r -q "$wag_target" ./*)
+            mv "$tmpdir/$wag_target" "./$wag_target"
+            rm -rf "$tmpdir"
+            
+            local wsize
+            wsize=$(stat -c%s "$wag_target" 2>/dev/null || stat -f%z "$wag_target" 2>/dev/null)
+            local wkb=$((wsize / 1024))
+            local wdec=$(((wsize % 1024) * 10 / 1024))
+            ok "${wag_target} (${wkb}.${wdec} KB) [ZIP]"
+        fi
+        
         return 0
     else
         err "Build failed"
@@ -230,10 +251,17 @@ cmd_run() {
     local file="${1:-}"
     if [ -z "$file" ]; then
         load_config
-        file="${NAME}.wasm"
-        [ ! -f "$file" ] && file="game.wasm"
+        if [ -f "${NAME}.wag" ]; then
+            file="${NAME}.wag"
+        elif [ -f "${NAME}.wasm" ]; then
+            file="${NAME}.wasm"
+        elif [ -f "game.wag" ]; then
+            file="game.wag"
+        else
+            file="game.wasm"
+        fi
     fi
-    [ ! -f "$file" ] && { err "WASM file not found: $file"; info "Build first: wagn0 build"; return 1; }
+    [ ! -f "$file" ] && { err "ROM file not found: $file"; info "Build first: wagn0 build"; return 1; }
     run_wasm "$file"
 }
 
@@ -253,7 +281,9 @@ cmd_dev() {
     rebuild_and_run() {
         [ "$host_pid" -ne 0 ] && kill "$host_pid" 2>/dev/null || true
         if build_wasm; then
-            run_wasm "$target" &
+            local run_tgt="$target"
+            [ -f "${NAME}.wag" ] && run_tgt="${NAME}.wag"
+            run_wasm "$run_tgt" &
             host_pid=$!
         fi
     }
@@ -282,70 +312,7 @@ cmd_dev() {
     done
 }
 
-# ── Asset pipeline (internal, called by build) ───────────────────────────────
-# Scans assets/, detects type by extension, generates assets.h with hex arrays.
-# Variable names: assets/<path>.<ext> → assets_<path_underscored>_<ext>.
-
-asset_var_name() {
-    local p="${1#./}"; p="${p#assets/}"; p="${p//\//_}"; p="${p//./_}"; echo "assets_${p}"
-}
-
-asset_run() {
-    local assets_dir="assets"
-    local out="assets.h"
-
-    if [ ! -d "$assets_dir" ] || [ -z "$(find "$assets_dir" -type f 2>/dev/null)" ]; then
-        echo '#ifndef WAGN0_ASSETS_H' > "$out"
-        echo '#define WAGN0_ASSETS_H' >> "$out"
-        echo '#endif' >> "$out"
-        return 0
-    fi
-
-    local files; files=$(find "$assets_dir" -type f | sort)
-
-    {
-        echo "#ifndef WAGN0_ASSETS_H"
-        echo "#define WAGN0_ASSETS_H"
-        echo "#include <stdint.h>"
-        echo
-        for f in $files; do
-            local rel="${f#./}"; rel="${rel#assets/}"
-            local ext="${f##*.}"; ext=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
-            local var; var=$(asset_var_name "$rel")
-            local upper; upper=$(echo "$var" | tr '[:lower:]' '[:upper:]')
-
-            case "$ext" in
-                png|jpg|jpeg|bmp)
-                    # Embed the COMPRESSED file data (png_decode() decodes at runtime).
-                    # We still emit W/H macros from magick identify for convenience.
-                    local wh wh=$(magick identify -format "%w %h" "$f" 2>/dev/null)
-                    local w="${wh%% *}" h="${wh##* }"
-                    echo "// assets/$rel (${w}x${h}, compressed)"
-                    echo "#define ${upper}_W $w"
-                    echo "#define ${upper}_H $h"
-                    echo "const uint8_t ${var}_data[] = {"
-                    xxd -i -c 16 "$f" | grep '^  0x' | sed 's/,$/,/'
-                    echo "};"; echo
-                    ;;
-                wav|mp3|ogg)
-                    local sz sz=$(stat -c%s "$f")
-                    echo "// assets/$rel (${sz} bytes, compressed)"
-                    echo "const uint8_t ${var}_data[] = {"
-                    xxd -i -c 16 "$f" | grep '^  0x' | sed 's/,$/,/'
-                    echo "};"; echo
-                    ;;
-                *)
-                    local sz sz=$(stat -c%s "$f")
-                    echo "// assets/$rel (raw, ${sz} bytes)"
-                    echo "const uint8_t ${var}_data[] = {"
-                    xxd -i -c 16 "$f" | grep '^  0x' | sed 's/,$/,/'
-                    echo "};"; echo
-                    ;;
-            esac
-        done
-        echo "#endif"
-    } > "$out"
-}
+# ── Asset pipeline (removed, using .wag zip packaging instead) ────────────
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 

@@ -12,10 +12,13 @@ static char fps_text[16] = "fps: --";
 static uint32_t seed = 12345;
 static uint32_t rnd() { seed = seed * 1103515245 + 12345; return (seed / 65536) % 32768; }
 
+void preload() {
+    load_image(&sheet, "sprite.png");
+}
+
 void draw() {
     static int _init = 0;
     if (!_init) { _init = 1;
-        sheet = img_load(assets_sprite_png_data, sizeof(assets_sprite_png_data));
         for (int i = 0; i < SPRITE_COUNT; i++) {
         sprites[i].w = sprite_w; sprites[i].h = sprite_h;
         sprites[i].x = (float)(rnd() % (320 - sprite_w));

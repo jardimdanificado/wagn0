@@ -116,8 +116,16 @@ typedef struct {
     uint32_t vram_offset;
     uint32_t audio_buffer_offset;
 
+    // --- I/O Operations (ROM writes, Host reads/writes) ---
+    uint32_t io_load;
+    uint32_t io_load_buffer;
+    uint32_t io_load_size;
+    uint32_t io_save;
+    uint32_t io_save_buffer;
+    uint32_t io_save_size;
+
     // --- Reserved padding (brings total struct size to 1024 bytes) ---
-    uint8_t reserved[40];
+    uint8_t reserved[16];
 } WagnosticState;
 
 // ============================================

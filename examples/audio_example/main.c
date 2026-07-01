@@ -1,4 +1,3 @@
-#define WAGN0_NO_DEFAULT_CALLBACKS
 #include "wagn0.h"
 
 static int active_count(void) {
@@ -39,7 +38,3 @@ void key_pressed(int key) {
     if (key == 0x21) play_tone(784.0f, 0.5f, 0.4f);  // 4: G5
     if (key == 0x22) play_noise(0.3f, 0.3f);          // 5: noise burst
 }
-
-void mouse_pressed(void) {}
-void mouse_released(void) {}
-void key_released(int key) { (void)key; }

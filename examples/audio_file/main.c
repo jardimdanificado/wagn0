@@ -1,14 +1,16 @@
-#define WAGN0_NO_DEFAULT_CALLBACKS
 #include "wagn0.h"
 
 static Wagn0Audio my_audio = {0};
 
+void preload() {
+    load_audio(&my_audio, "test.wav");
+}
+
+void setup() {
+    if (my_audio.samples) audio_play(&my_audio);
+}
+
 void draw() {
-    static int _init = 0;
-    if (!_init) { _init = 1;
-        my_audio = wav_decode(assets_test_wav_data, sizeof(assets_test_wav_data));
-        if (my_audio.samples) audio_play(&my_audio);
-    }
 
     clear(screen, BLACK);
     if (audio_is_playing()) {
@@ -20,9 +22,6 @@ void draw() {
     }
 }
 
-void mouse_pressed(void) {}
-void mouse_released(void) {}
-void key_released(int k) { (void)k; }
 void key_pressed(int key) {
     if (key == 0x2C && my_audio.samples) {  // Space
         audio_play(&my_audio);

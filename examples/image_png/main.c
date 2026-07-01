@@ -2,12 +2,11 @@
 
 static Canvas img = {0};
 
-void draw() {
-    static int _init = 0;
-    if (!_init) { _init = 1;
-        img = img_load(assets_test_png_data, sizeof(assets_test_png_data));
-    }
+void preload() {
+    load_image(&img, "test.png");
+}
 
+void draw() {
     clear(screen, BLACK);
-    if (img.pixels) draw_canvas(screen, img, (320 - ASSETS_TEST_PNG_W) / 2, (240 - ASSETS_TEST_PNG_H) / 2);
+    if (img.pixels) draw_canvas(screen, img, (320 - img.width) / 2, (240 - img.height) / 2);
 }

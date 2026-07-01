@@ -2,11 +2,12 @@
 
 static Canvas img;
 
+void preload() {
+    load_image(&img, "test_card.png");
+}
+
 void draw() {
-    static int _init = 0;
-    if (!_init) { _init = 1;
-        img = img_load(assets_test_card_png_data, sizeof(assets_test_card_png_data));
-    }
+    clear(screen, BLACK);
 
     clear(screen, BLACK);
     draw_text(screen, "16BPP MODE (RGB565)", 10, 10, WHITE);

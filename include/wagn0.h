@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 // Audio API below needs w_audio_* globals, so include wagnostic.h here.
 #define WAGNOSTIC_IMPLEMENTATION
@@ -45,18 +46,11 @@ static struct {
 #define w_audio_channels _wagn0_rom.state.audio_channels
 #define w_audio_write _wagn0_rom.state.audio_write
 #define w_audio_read _wagn0_rom.state.audio_read
+#define w_gamepad_buttons _wagn0_rom.state.gamepad_buttons
 #define w_vram _wagn0_rom.vram
 #define w_audio_buffer _wagn0_rom.audio_buffer
 
-// Auto-include generated assets.h (created by `wagn0 asset`).
-// Stub is generated when no assets/ exists, so the include always works.
-#if defined(__has_include)
-#  if __has_include("assets.h")
-#    include "assets.h"
-#  endif
-#elif __has_include("assets.h")
-#    include "assets.h"
-#endif
+// No assets.h anymore. Using Wagnostic .wag ZIP API for dynamic loading.
 
 // GIF decoder (gifdec + posix_shim). Build auto-defines WAGN0_NO_GIF_DECODE
 // when no GIF assets are found, so gifdec.h is only included when needed.
@@ -523,6 +517,8 @@ __attribute__((weak)) void fill_audio(void) {
 
 // Defaults for config — overridden by `wagn0 build` via -DWAGN0_CFG_* flags
 
+void preload(void);
+void setup(void);
 void draw(void);
 void mouse_pressed(void);
 void mouse_released(void);
@@ -536,16 +532,13 @@ void key_released(int key);
 #define OLIVEC_IMPLEMENTATION
 #include "olive.c"
 
-// Weak no-op defaults for user callbacks. Prevents the compiler from
-// emitting `env.update` etc. as unresolved imports (the native runner
-// can't satisfy them). Define WAGN0_NO_DEFAULT_CALLBACKS before
-// `#include "wagn0.h"` to opt out when providing your own.
-#ifndef WAGN0_NO_DEFAULT_CALLBACKS
-__attribute__((weak)) void mouse_pressed(void) {}
-__attribute__((weak)) void mouse_released(void) {}
-__attribute__((weak)) void key_pressed(int key) { (void)key; }
-__attribute__((weak)) void key_released(int key) { (void)key; }
-#endif
+// Weak declarations for optional callbacks. If undefined, their address is NULL.
+__attribute__((weak)) void preload(void);
+__attribute__((weak)) void setup(void);
+__attribute__((weak)) void mouse_pressed(void);
+__attribute__((weak)) void mouse_released(void);
+__attribute__((weak)) void key_pressed(int key);
+__attribute__((weak)) void key_released(int key);
 
 // ============================================
 // CANVAS & DRAWING IMPLEMENTATION
@@ -823,6 +816,80 @@ Wagn0Audio ogg_decode(const uint8_t* data, size_t size) {
 // MAIN WAGNO FUNCTIONS
 // ============================================
 
+// ============================================
+// PRELOAD SYSTEM
+// ============================================
+
+typedef enum {
+    WAGN0_ASSET_IMAGE,
+    WAGN0_ASSET_AUDIO,
+    WAGN0_ASSET_DATA
+} Wagn0AssetType;
+
+typedef struct {
+    char path[128];
+    Wagn0AssetType type;
+    void* target;
+} Wagn0AssetRequest;
+
+#define WAGN0_MAX_ASSET_REQUESTS 64
+static Wagn0AssetRequest _wagn0_asset_queue[WAGN0_MAX_ASSET_REQUESTS];
+static int _wagn0_queue_head = 0;
+static int _wagn0_queue_tail = 0;
+
+static int _wagn0_preloading_state = 0;
+// 0 = Initial (run preload, then move to 1)
+// 1 = Loading (process queue until empty, then move to 2)
+// 2 = Setup (run setup, then move to 3)
+// 3 = Running
+
+static int _wagn0_io_step = 0; 
+// 0 = Idle / Dequeue next
+// 1 = Waiting for size
+// 2 = Waiting for data
+static uint8_t* _wagn0_io_buffer = NULL;
+
+void load_image(Canvas* out, const char* path) {
+    if (_wagn0_queue_tail >= WAGN0_MAX_ASSET_REQUESTS) return;
+    Wagn0AssetRequest* req = &_wagn0_asset_queue[_wagn0_queue_tail++];
+    int i = 0;
+    while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
+    req->path[i] = '\0';
+    req->type = WAGN0_ASSET_IMAGE;
+    req->target = out;
+}
+
+void load_audio(Wagn0Audio* out, const char* path) {
+    if (_wagn0_queue_tail >= WAGN0_MAX_ASSET_REQUESTS) return;
+    Wagn0AssetRequest* req = &_wagn0_asset_queue[_wagn0_queue_tail++];
+    int i = 0;
+    while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
+    req->path[i] = '\0';
+    req->type = WAGN0_ASSET_AUDIO;
+    req->target = out;
+}
+
+typedef struct {
+    void* data;
+    uint32_t size;
+} Wagn0Data;
+
+void load_data(Wagn0Data* out, const char* path) {
+    if (_wagn0_queue_tail >= WAGN0_MAX_ASSET_REQUESTS) return;
+    Wagn0AssetRequest* req = &_wagn0_asset_queue[_wagn0_queue_tail++];
+    int i = 0;
+    while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
+    req->path[i] = '\0';
+    req->type = WAGN0_ASSET_DATA;
+    req->target = out;
+}
+
+static void _wagn0_copy_str(uint8_t* dst, const char* src) {
+    int i = 0;
+    while(src[i] && i < 255) { dst[i] = src[i]; i++; }
+    dst[i] = '\0';
+}
+
 int wupdate() {
     static int init = 0;
     if (!init) {
@@ -834,7 +901,7 @@ int wupdate() {
         wagn0.mouse  = vec2(0, 0); wagn0.pmouse = vec2(0, 0);
         wagn0.mouse_pressed = false; wagn0.mouse_released = false;
         wagn0.mouse_down = false;
-        // Initialize screen canvas
+        
         _wagn0_rom.state.vram_offset = sizeof(WagnosticState);
         _wagn0_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagn0_rom.vram);
         wagn0.canvas_pixels = w_vram;
@@ -846,12 +913,8 @@ int wupdate() {
         screen.width = w_width; screen.height = w_height;
         screen.stride = w_width; screen.bpp = (uint8_t)w_bpp;
     }
-    // Update time
-    static uint32_t last_ticks = 0;
-    uint32_t now = w_ticks;
-    if (last_ticks > 0) wagn0.delta_time = (now - last_ticks) / 1000.0f;
-    last_ticks = now; wagn0.frame_count++;
-    
+
+    // Input processing
     wagn0.pmouse = wagn0.mouse;
     wagn0.mouse = vec2(w_mouse_x, w_mouse_y);
     bool cur = (w_mouse_buttons & 1) != 0;
@@ -865,9 +928,124 @@ int wupdate() {
         wagn0.keys_released[i] = !k && wagn0.keys[i];
         wagn0.keys[i] = k;
     }
+
+    if (_wagn0_preloading_state == 0) {
+        if (preload) preload();
+        _wagn0_preloading_state = 1;
+        _wagn0_io_step = 0;
+    }
+
+    if (_wagn0_preloading_state == 1) {
+        if (_wagn0_queue_head >= _wagn0_queue_tail) {
+            _wagn0_preloading_state = 2; // Done loading
+        } else {
+            Wagn0AssetRequest* req = &_wagn0_asset_queue[_wagn0_queue_head];
+            
+            if (_wagn0_io_step == 0) {
+                // Step 0: Ask for file size
+                _wagn0_rom.state.io_load = (uint32_t)(uintptr_t)_wagn0_rom.state.title; // use title temporarily or allocated buffer
+                // Actually, let's use a 256 byte buffer inside state or just a static buffer
+                static uint8_t path_buf[256];
+                _wagn0_copy_str(path_buf, req->path);
+                _wagn0_rom.state.io_load = (uint32_t)(uintptr_t)path_buf;
+                _wagn0_rom.state.io_load_buffer = 0; // ask for size
+                _wagn0_rom.state.io_load_size = 0;
+                _wagn0_io_step = 1;
+                return (int)&_wagn0_rom.state;
+            } 
+            else if (_wagn0_io_step == 1) {
+                // Step 1: Wait for size to be returned
+                if (_wagn0_rom.state.io_load != 0) return (int)&_wagn0_rom.state; // Host hasn't cleared it yet
+                
+                uint32_t size = _wagn0_rom.state.io_load_size;
+                if (size == 0) {
+                    // File not found or empty
+                    _wagn0_queue_head++;
+                    _wagn0_io_step = 0;
+                    return (int)&_wagn0_rom.state;
+                }
+                
+                // Allocate buffer
+                _wagn0_io_buffer = (uint8_t*)malloc(size);
+                if (!_wagn0_io_buffer) {
+                    _wagn0_queue_head++;
+                    _wagn0_io_step = 0;
+                    return (int)&_wagn0_rom.state;
+                }
+                
+                // Request actual data
+                static uint8_t path_buf[256];
+                _wagn0_copy_str(path_buf, req->path);
+                _wagn0_rom.state.io_load = (uint32_t)(uintptr_t)path_buf;
+                _wagn0_rom.state.io_load_buffer = (uint32_t)(uintptr_t)_wagn0_io_buffer;
+                _wagn0_io_step = 2;
+                return (int)&_wagn0_rom.state;
+            }
+            else if (_wagn0_io_step == 2) {
+                // Step 2: Wait for data
+                if (_wagn0_rom.state.io_load != 0) return (int)&_wagn0_rom.state; // Not ready
+                
+                uint32_t size = _wagn0_rom.state.io_load_size;
+                
+                // Decode data
+                if (req->type == WAGN0_ASSET_IMAGE) {
+#ifndef WAGN0_NO_PNG_DECODE
+                    Canvas img = img_load(_wagn0_io_buffer, size);
+                    if (req->target) *((Canvas*)req->target) = img;
+#endif
+                } else if (req->type == WAGN0_ASSET_AUDIO) {
+#ifndef WAGN0_NO_AUDIO_DECODE
+                    // Basic sniffer to decide between wav/mp3/ogg based on path extension
+                    int len = 0; while(req->path[len]) len++;
+                    if (len >= 4) {
+                        const char* ext = &req->path[len-4];
+                        if (ext[1]=='w' && ext[2]=='a' && ext[3]=='v') {
+                            Wagn0Audio a = wav_decode(_wagn0_io_buffer, size);
+                            if (req->target) *((Wagn0Audio*)req->target) = a;
+                        }
+                        else if (ext[1]=='m' && ext[2]=='p' && ext[3]=='3') {
+                            Wagn0Audio a = mp3_decode(_wagn0_io_buffer, size);
+                            if (req->target) *((Wagn0Audio*)req->target) = a;
+                        }
+                        else if (ext[1]=='o' && ext[2]=='g' && ext[3]=='g') {
+                            Wagn0Audio a = ogg_decode(_wagn0_io_buffer, size);
+                            if (req->target) *((Wagn0Audio*)req->target) = a;
+                        }
+                    }
+#endif
+                } else if (req->type == WAGN0_ASSET_DATA) {
+                    if (req->target) {
+                        Wagn0Data* d = (Wagn0Data*)req->target;
+                        d->data = _wagn0_io_buffer;
+                        d->size = size;
+                    }
+                    _wagn0_io_buffer = NULL; // Do not free it! User owns it.
+                }
+                
+                if (_wagn0_io_buffer) free(_wagn0_io_buffer);
+                _wagn0_io_buffer = NULL;
+                
+                _wagn0_queue_head++;
+                _wagn0_io_step = 0;
+                return (int)&_wagn0_rom.state;
+            }
+        }
+    }
+
+    if (_wagn0_preloading_state == 2) {
+        if (setup) setup();
+        _wagn0_preloading_state = 3;
+    }
+
+    // Regular draw loop
+    static uint32_t last_ticks = 0;
+    uint32_t now = w_ticks;
+    if (last_ticks > 0) wagn0.delta_time = (now - last_ticks) / 1000.0f;
+    last_ticks = now; wagn0.frame_count++;
+    
     draw();
     fill_audio();
-    // Auto-calculate FPS
+    
     static uint32_t _fps_timer = 0;
     if (_fps_timer == 0) _fps_timer = now;
     uint32_t _fps_elapsed = now - _fps_timer;
@@ -876,11 +1054,12 @@ int wupdate() {
         wagn0.frame_count = 0;
         _fps_timer = now;
     }
-    if (wagn0.mouse_pressed) mouse_pressed();
-    if (wagn0.mouse_released) mouse_released();
+    
+    if (wagn0.mouse_pressed && mouse_pressed) mouse_pressed();
+    if (wagn0.mouse_released && mouse_released) mouse_released();
     for (int i = 0; i < 256; i++) {
-        if (wagn0.keys_pressed[i]) key_pressed(i);
-        if (wagn0.keys_released[i]) key_released(i);
+        if (wagn0.keys_pressed[i] && key_pressed) key_pressed(i);
+        if (wagn0.keys_released[i] && key_released) key_released(i);
     }
     w_redraw(&_wagn0_rom.state);
     return (int)&_wagn0_rom.state;

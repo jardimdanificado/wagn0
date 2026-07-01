@@ -4,11 +4,11 @@ static Canvas img;
 static int pos_x = 100, pos_y = 70;
 static int scale_w = 120, scale_h = 100;
 
+void preload() {
+    load_image(&img, "sprite.png");
+}
+
 void draw() {
-    static int _init = 0;
-    if (!_init) { _init = 1;
-        img = img_load(assets_sprite_png_data, sizeof(assets_sprite_png_data));
-    }
 
     clear(screen, BLACK);
 

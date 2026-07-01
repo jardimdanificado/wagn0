@@ -14,14 +14,22 @@ static inline uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
     return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
 }
 
-void draw() {
-    static int _init = 0;
-    if (!_init) { _init = 1;
-        _shim_reset(assets_test_gif_data, sizeof(assets_test_gif_data));
+static Wagn0Data gif_data = {0};
+
+void preload() {
+    load_data(&gif_data, "test.gif");
+}
+
+void setup() {
+    if (gif_data.data) {
+        _shim_reset(gif_data.data, gif_data.size);
         gif = gd_open_gif("embedded");
         if (gif) gd_get_frame(gif);
         last_ticks = w_ticks;
     }
+}
+
+void draw() {
 
     clear(screen, BLACK);
     if (!gif) return;
