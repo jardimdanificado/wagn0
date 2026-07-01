@@ -884,6 +884,22 @@ void load_data(Wagn0Data* out, const char* path) {
     req->target = out;
 }
 
+static char _wagn0_save_path[128];
+bool file_save(const char* path, const void* data, uint32_t size) {
+    if (_wagn0_rom.state.io_save) return false; // Busy
+    int i = 0;
+    while(path[i] && i < 127) { _wagn0_save_path[i] = path[i]; i++; }
+    _wagn0_save_path[i] = '\0';
+    _wagn0_rom.state.io_save_buffer = (uint32_t)(uintptr_t)data;
+    _wagn0_rom.state.io_save_size = size;
+    _wagn0_rom.state.io_save = (uint32_t)(uintptr_t)_wagn0_save_path;
+    return true;
+}
+
+bool file_is_saving(void) {
+    return _wagn0_rom.state.io_save != 0;
+}
+
 static void _wagn0_copy_str(uint8_t* dst, const char* src) {
     int i = 0;
     while(src[i] && i < 255) { dst[i] = src[i]; i++; }
