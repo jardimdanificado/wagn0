@@ -168,14 +168,14 @@ build_wasm() {
         local dec=$(((size % 1024) * 10 / 1024))
         ok "${target} (${kb}.${dec} KB)"
         
-        # Package into .wag if assets exist
+        # Package into .tar if assets exist
         if [ -d "assets" ] && [ -n "$(ls -A assets 2>/dev/null)" ]; then
-            local wag_target="${NAME}.wag"
+            local wag_target="${NAME}.tar"
             local tmpdir
             tmpdir=$(mktemp -d)
             cp "$target" "$tmpdir/main.wasm"
             cp -r assets/* "$tmpdir/"
-            (cd "$tmpdir" && zip -r -q "$wag_target" ./*)
+            (cd "$tmpdir" && tar -cf "$wag_target" --format=ustar *)
             mv "$tmpdir/$wag_target" "./$wag_target"
             rm -rf "$tmpdir"
             
@@ -183,7 +183,7 @@ build_wasm() {
             wsize=$(stat -c%s "$wag_target" 2>/dev/null || stat -f%z "$wag_target" 2>/dev/null)
             local wkb=$((wsize / 1024))
             local wdec=$(((wsize % 1024) * 10 / 1024))
-            ok "${wag_target} (${wkb}.${wdec} KB) [ZIP]"
+            ok "${wag_target} (${wkb}.${wdec} KB) [TAR]"
         fi
         
         return 0
@@ -251,12 +251,12 @@ cmd_run() {
     local file="${1:-}"
     if [ -z "$file" ]; then
         load_config
-        if [ -f "${NAME}.wag" ]; then
-            file="${NAME}.wag"
+        if [ -f "${NAME}.tar" ]; then
+            file="${NAME}.tar"
         elif [ -f "${NAME}.wasm" ]; then
             file="${NAME}.wasm"
-        elif [ -f "game.wag" ]; then
-            file="game.wag"
+        elif [ -f "game.tar" ]; then
+            file="game.tar"
         else
             file="game.wasm"
         fi
@@ -282,7 +282,7 @@ cmd_dev() {
         [ "$host_pid" -ne 0 ] && kill "$host_pid" 2>/dev/null || true
         if build_wasm; then
             local run_tgt="$target"
-            [ -f "${NAME}.wag" ] && run_tgt="${NAME}.wag"
+            [ -f "${NAME}.tar" ] && run_tgt="${NAME}.tar"
             run_wasm "$run_tgt" &
             host_pid=$!
         fi
@@ -312,7 +312,7 @@ cmd_dev() {
     done
 }
 
-# ── Asset pipeline (removed, using .wag zip packaging instead) ────────────
+# ── Asset pipeline (removed, using .tar tar packaging instead) ────────────
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 

@@ -7,8 +7,8 @@ static uint32_t last_save_time = 0;
 void preload() {
     // We could load an existing save file here if we want!
     // But since Wagnostic host currently clears io_save and io_load simulates
-    // reading from the ZIP, we won't be able to actually read what we saved
-    // unless the host supports writing to the ZIP or a virtual FS.
+    // reading from the TAR, we won't be able to actually read what we saved
+    // unless the host supports writing to the TAR or a virtual FS.
     // For this test, we just test the `file_save` API.
 }
 

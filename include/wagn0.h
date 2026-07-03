@@ -50,7 +50,7 @@ static struct {
 #define w_vram _wagn0_rom.vram
 #define w_audio_buffer _wagn0_rom.audio_buffer
 
-// No assets.h anymore. Using Wagnostic .wag ZIP API for dynamic loading.
+// No assets.h anymore. Using Wagnostic .tar TAR API for dynamic loading.
 
 // GIF decoder (gifdec + posix_shim). Build auto-defines WAGN0_NO_GIF_DECODE
 // when no GIF assets are found, so gifdec.h is only included when needed.
