@@ -143,27 +143,32 @@ void key_released(int key);
 All callbacks must be defined. Use `#define WAGN0_NO_DEFAULT_CALLBACKS` before
 including `wagn0.h` if you define your own (to avoid weak-default conflicts).
 
-## Assets
+## Assets (VFS)
 
-Put files in `assets/` and they're automatically embedded as C arrays:
-
-```
-assets/
-├── sprites/icon.png   → assets_sprites_icon_png_data + ASSETS_SPRITES_ICON_PNG_W/H
-├── sfx/jump.wav       → assets_sfx_jump_wav_data + ASSETS_SFX_JUMP_WAV_RATE/LEN
-└── data/config.json   → assets_data_config_data (raw bytes)
-```
+Put files in `assets/`. They are bundled into the `.tar` Virtual File System automatically during `wagn0 build` and can be loaded dynamically at runtime:
 
 ```c
-Canvas icon = img_load(assets_sprites_icon_png_data,
-                       sizeof(assets_sprites_icon_png_data));
-draw_canvas(screen, icon, 10, 10);
-Wagn0Audio sfx = wav_decode(assets_sfx_jump_wav_data,
-                            sizeof(assets_sfx_jump_wav_data));
+size_t size;
+uint8_t* png_data = file_load("assets/icon.png", &size);
+if (png_data) {
+    Canvas icon = img_load(png_data, size);
+    draw_canvas(screen, icon, 10, 10);
+}
+
+uint8_t* wav_data = file_load("assets/jump.wav", &size);
+if (wav_data) {
+    Wagn0Audio sfx = wav_decode(wav_data, size);
+}
 ```
 
 Decoders (lodepng, dr_wav, etc.) are auto-linked by the build system when
 matching file types are found in `assets/`.
+
+Saving is completely transparent. Write to any path inside the `.tar` and it will be appended permanently (append-only inplace save):
+
+```c
+file_save("save.txt", "score: 100", 10);
+```
 
 ## Quick Start
 
@@ -171,7 +176,7 @@ matching file types are found in `assets/`.
 wagn0 new mygame
 cd mygame
 # place PNGs in assets/, write main.c
-wagn0 build       # auto-generates assets.h + compiles with decoders
+wagn0 build       # compiles with decoders and packages .tar VFS
 wagn0 run         # run with native host
 wagn0 run --runner sm   # use SpiderMonkey host
 wagn0 dev         # watch, rebuild, run
@@ -191,7 +196,7 @@ templates/    project skeleton for `wagn0 new`
 | Command | Description |
 |---------|-------------|
 | `wagn0 new <name>` | Create project with `assets/` directory |
-| `wagn0 build` | Scan `assets/`, generate `assets.h`, compile to WASM |
+| `wagn0 build` | Scan `assets/`, package into `.tar`, compile to WASM |
 | `wagn0 run [--runner native\|sm]` | Run with host |
 | `wagn0 dev [--runner native\|sm]` | Watch + rebuild + run |
 
