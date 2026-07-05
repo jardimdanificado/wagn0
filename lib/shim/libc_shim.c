@@ -6,17 +6,18 @@
 #include <stdint.h>
 #include <string.h>
 
-#define ARENA_SIZE (120 * 1024 * 1024)  // 120MB
 #define HEADER_SIZE 8
 
-static char arena[ARENA_SIZE];
+extern unsigned char __heap_base;
 static size_t arena_used = 0;
 
 void *malloc(size_t size) {
     if (size == 0) return 0;
     size_t total = ((size + HEADER_SIZE) + 7) & ~(size_t)7;
-    if (arena_used + total > ARENA_SIZE) return 0;
-    char *base = &arena[arena_used];
+    size_t mem_size = __builtin_wasm_memory_size(0) * 65536;
+    char *heap_start = (char *)&__heap_base;
+    if ((size_t)(heap_start + arena_used + total) > mem_size) return 0;
+    char *base = heap_start + arena_used;
     *(size_t*)base = size;
     arena_used += total;
     return base + HEADER_SIZE;

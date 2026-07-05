@@ -125,14 +125,7 @@ build_wasm() {
         # No PNG assets: disable png_decode to avoid lodepng_decode32 import
         decoder_inc="$decoder_inc -DWAGN0_NO_PNG_DECODE"
     fi
-    if find assets -name '*.gif' 2>/dev/null | grep -q .; then
-        decoder_c_files="$decoder_c_files ${WAGNO_DIR}/lib/decoders/gifdec.c \
-                         ${WAGNO_DIR}/lib/decoders/posix_shim.c"
-        decoder_inc="$decoder_inc -I${WAGNO_DIR}/lib/decoders"
-    else
-        decoder_inc="$decoder_inc -DWAGN0_NO_GIF_DECODE \
-            -I${WAGNO_DIR}/lib/decoders"
-    fi
+
     if find assets -name '*.wav' -o -name '*.mp3' -o -name '*.ogg' 2>/dev/null | grep -q .; then
         decoder_inc="$decoder_inc -I${WAGNO_DIR}/lib/decoders \
                      -DSTB_VORBIS_NO_STDIO"

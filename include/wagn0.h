@@ -52,13 +52,6 @@ static struct {
 
 // No assets.h anymore. Using Wagnostic .tar TAR API for dynamic loading.
 
-// GIF decoder (gifdec + posix_shim). Build auto-defines WAGN0_NO_GIF_DECODE
-// when no GIF assets are found, so gifdec.h is only included when needed.
-#ifndef WAGN0_NO_GIF_DECODE
-#include "gifdec.h"
-#include "posix_shim.h"
-#endif
-
 // pixel_t is always uint32_t. Runtime BPP (8/16/32) is handled by
 // Canvas.bpp and olivec_set_pixel — no compile-time choice needed.
 typedef uint32_t pixel_t;
@@ -310,6 +303,8 @@ int text_width(const char* text);
 Canvas img_create(const void* data, int width, int height, int bpp);
 void draw_canvas(Canvas c, Canvas img, int x, int y);
 void draw_canvas_scaled(Canvas c, Canvas img, int x, int y, int w, int h);
+void draw_canvas_ex(Canvas c, Canvas img, int x, int y, int use_color_key, uint32_t color_key);
+void draw_canvas_scaled_ex(Canvas c, Canvas img, int x, int y, int w, int h, int use_color_key, uint32_t color_key);
 Canvas img_load(const uint8_t* data, size_t size);
 
 // ============================================
@@ -699,6 +694,9 @@ static inline Color _pixel_to_rgba(Canvas img, int index) {
     if (img.bpp == 32) {
         uint32_t p = ((uint32_t*)img.pixels)[index];
         c.r = p & 0xFF; c.g = (p>>8)&0xFF; c.b = (p>>16)&0xFF; c.a = (p>>24)&0xFF;
+    } else if (img.bpp == 24) {
+        uint8_t* p = &((uint8_t*)img.pixels)[index * 3];
+        c.r = p[0]; c.g = p[1]; c.b = p[2]; c.a = 255;
     } else if (img.bpp == 16) {
         uint16_t p = ((uint16_t*)img.pixels)[index];
         c.r = ((p>>11)&0x1F)*255/31; c.g = ((p>>5)&0x3F)*255/63; c.b = (p&0x1F)*255/31;
@@ -712,17 +710,32 @@ static inline Color _pixel_to_rgba(Canvas img, int index) {
 // Helper: write RGBA to canvas with runtime BPP conversion
 static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     if (x < 0 || x >= c.width || y < 0 || y >= c.height) return;
-    if (c.bpp == 32) ((uint32_t*)c.pixels)[y * c.stride + x] = (a<<24)|(b<<16)|(g<<8)|r;
-    else if (c.bpp == 16) ((uint16_t*)c.pixels)[y * c.stride + x] = ((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);
+    if (c.bpp == 32) ((uint32_t*)c.pixels)[y * c.stride + x] = r | (g<<8) | (b<<16) | (a<<24);
+    else if (c.bpp == 24) {
+        uint8_t* p = &((uint8_t*)c.pixels)[(y * c.stride + x) * 3];
+        p[0] = r; p[1] = g; p[2] = b;
+    } else if (c.bpp == 16) ((uint16_t*)c.pixels)[y * c.stride + x] = ((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);
     else ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
 }
 
-void draw_canvas(Canvas c, Canvas img, int x, int y) {
+void draw_canvas_ex(Canvas c, Canvas img, int x, int y, int use_color_key, uint32_t color_key) {
     if (!img.pixels) return;
     for (int iy = 0; iy < img.height; iy++) {
         for (int ix = 0; ix < img.width; ix++) {
             int px = x + ix, py = y + iy;
             if (px < 0 || px >= c.width || py < 0 || py >= c.height) continue;
+            
+            if (use_color_key) {
+                uint32_t p = 0;
+                if (img.bpp == 32) p = ((uint32_t*)img.pixels)[iy * img.width + ix];
+                else if (img.bpp == 24) {
+                    uint8_t* px = &((uint8_t*)img.pixels)[(iy * img.width + ix) * 3];
+                    p = px[0] | (px[1]<<8) | (px[2]<<16);
+                } else if (img.bpp == 16) p = ((uint16_t*)img.pixels)[iy * img.width + ix];
+                else p = ((uint8_t*)img.pixels)[iy * img.width + ix];
+                if (p == color_key) continue;
+            }
+            
             Color col = _pixel_to_rgba(img, iy * img.width + ix);
             if (img.bpp == 32 && col.a <= 128) continue;
             _canvas_set_pixel(c, px, py, col.r, col.g, col.b, col.a);
@@ -730,18 +743,38 @@ void draw_canvas(Canvas c, Canvas img, int x, int y) {
     }
 }
 
-void draw_canvas_scaled(Canvas c, Canvas img, int x, int y, int w, int h) {
+void draw_canvas(Canvas c, Canvas img, int x, int y) {
+    draw_canvas_ex(c, img, x, y, 0, 0);
+}
+
+void draw_canvas_scaled_ex(Canvas c, Canvas img, int x, int y, int w, int h, int use_color_key, uint32_t color_key) {
     if (!img.pixels) return;
     for (int iy = 0; iy < h; iy++) {
         for (int ix = 0; ix < w; ix++) {
             int px = x + ix, py = y + iy;
             if (px < 0 || px >= c.width || py < 0 || py >= c.height) continue;
             int sx = ix * img.width / w, sy = iy * img.height / h;
+            
+            if (use_color_key) {
+                uint32_t p = 0;
+                if (img.bpp == 32) p = ((uint32_t*)img.pixels)[sy * img.width + sx];
+                else if (img.bpp == 24) {
+                    uint8_t* px = &((uint8_t*)img.pixels)[(sy * img.width + sx) * 3];
+                    p = px[0] | (px[1]<<8) | (px[2]<<16);
+                } else if (img.bpp == 16) p = ((uint16_t*)img.pixels)[sy * img.width + sx];
+                else p = ((uint8_t*)img.pixels)[sy * img.width + sx];
+                if (p == color_key) continue;
+            }
+            
             Color col = _pixel_to_rgba(img, sy * img.width + sx);
             if (img.bpp == 32 && col.a <= 128) continue;
             _canvas_set_pixel(c, px, py, col.r, col.g, col.b, col.a);
         }
     }
+}
+
+void draw_canvas_scaled(Canvas c, Canvas img, int x, int y, int w, int h) {
+    draw_canvas_scaled_ex(c, img, x, y, w, h, 0, 0);
 }
 
 // ============================================
