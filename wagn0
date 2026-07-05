@@ -67,20 +67,9 @@ find_host() {
 
 build_host() {
     info "To build the host runner, clone the wagnostic repo and run:"
-    info "  make -C examples"
+    info "  make -C runners/wasm3"
     err "Host binary not found. Install or build wagnostic first."
     return 1
-    local out="${1:-./wagnostic}"
-    info "Building host binary..."
-    if ! command -v gcc &>/dev/null; then
-        err "gcc not found. Install build-essential."
-        return 1
-    fi
-    local wasm3_src
-    wasm3_src=$(find "$wasm3_dir" -maxdepth 1 -name '*.c' 2>/dev/null | tr '\n' ' ' || true)
-    [ -z "$wasm3_src" ] && { err "wasm3 source not found at $wasm3_dir"; return 1; }
-    gcc -I"$wasm3_dir" -O2 "$host_src" $wasm3_src -o "$out" -lSDL2 -lm && \
-        ok "Host built: $out" || { err "Host build failed"; return 1; }
 }
 
 # ── Build WASM ───────────────────────────────────────────────────────────────
@@ -106,7 +95,6 @@ build_wasm() {
     clang=$(command -v clang) || clang=clang
     [ "$release" = "release" ] && opt="-O3"
 
-    info "Compiling ${NAME} -> ${target}"
     info "Compiling ${NAME} -> ${target}"
     
     # Delete old assets.h if exists

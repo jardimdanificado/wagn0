@@ -21,7 +21,7 @@ typedef struct {
     size_t width;
     size_t height;
     size_t stride;
-    uint8_t bpp; // 8, 16, or 32
+    uint8_t bpp; // 8, 16, 24, or 32
 } Olivec_Canvas;
 
 typedef struct {
@@ -113,13 +113,18 @@ OLIVECDEF Olivec_Canvas olivec_canvas(void *pixels, size_t width, size_t height,
 OLIVECDEF Olivec_Canvas olivec_subcanvas(Olivec_Canvas oc, int x, int y, int w, int h) {
     Olivec_Normalized_Rect nr;
     if (!olivec_normalize_rect(x, y, w, h, oc.width, oc.height, &nr)) return (Olivec_Canvas){0};
-    void *pixels = (uint8_t*)oc.pixels + (nr.y1 * oc.stride + nr.x1) * (oc.bpp / 8);
+    size_t bpp_bytes = (oc.bpp == 24) ? 3 : (oc.bpp / 8);
+    void *pixels = (uint8_t*)oc.pixels + (nr.y1 * oc.stride + nr.x1) * bpp_bytes;
     return (Olivec_Canvas){ .pixels = pixels, .width = nr.x2 - nr.x1 + 1, .height = nr.y2 - nr.y1 + 1, .stride = oc.stride, .bpp = oc.bpp };
 }
 
 static inline void olivec_set_pixel(Olivec_Canvas oc, int x, int y, uint32_t color) {
     if (x < 0 || (size_t)x >= oc.width || y < 0 || (size_t)y >= oc.height) return;
     if (oc.bpp == 32) ((uint32_t*)oc.pixels)[y * oc.stride + x] = color;
+    else if (oc.bpp == 24) {
+        uint8_t *p = &((uint8_t*)oc.pixels)[(y * oc.stride + x) * 3];
+        p[0] = color & 0xFF; p[1] = (color >> 8) & 0xFF; p[2] = (color >> 16) & 0xFF;
+    }
     else if (oc.bpp == 16) { if (color != 0) ((uint16_t*)oc.pixels)[y * oc.stride + x] = (uint16_t)color; }
     else if (oc.bpp == 8)  { if (color != 0) ((uint8_t*)oc.pixels)[y * oc.stride + x] = (uint8_t)color; }
 }
@@ -127,6 +132,10 @@ static inline void olivec_set_pixel(Olivec_Canvas oc, int x, int y, uint32_t col
 static inline uint32_t olivec_get_pixel(Olivec_Canvas oc, int x, int y) {
     if (x < 0 || (size_t)x >= oc.width || y < 0 || (size_t)y >= oc.height) return 0;
     if (oc.bpp == 32) return ((uint32_t*)oc.pixels)[y * oc.stride + x];
+    if (oc.bpp == 24) {
+        uint8_t *p = &((uint8_t*)oc.pixels)[(y * oc.stride + x) * 3];
+        return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | 0xFF000000u;
+    }
     if (oc.bpp == 16) return ((uint16_t*)oc.pixels)[y * oc.stride + x];
     return ((uint8_t*)oc.pixels)[y * oc.stride + x];
 }
@@ -134,6 +143,11 @@ static inline uint32_t olivec_get_pixel(Olivec_Canvas oc, int x, int y) {
 OLIVECDEF void olivec_fill(Olivec_Canvas oc, uint32_t color) {
     size_t n = oc.width * oc.height;
     if (oc.bpp == 32) { uint32_t *p = (uint32_t*)oc.pixels; while(n--) *p++ = color; }
+    else if (oc.bpp == 24) {
+        uint8_t *p = (uint8_t*)oc.pixels;
+        uint8_t r = color & 0xFF, g = (color >> 8) & 0xFF, b = (color >> 16) & 0xFF;
+        while(n--) { *p++ = r; *p++ = g; *p++ = b; }
+    }
     else if (oc.bpp == 16) { uint16_t *p = (uint16_t*)oc.pixels; while(n--) *p++ = (uint16_t)color; }
     else { uint8_t *p = (uint8_t*)oc.pixels; while(n--) *p++ = (uint8_t)color; }
 }

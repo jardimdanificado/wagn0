@@ -26,7 +26,7 @@
 // Wagnostic new API: ROM must provide a WagnosticState struct
 static struct {
     WagnosticState state;
-    uint8_t vram[WAGN0_CFG_W * WAGN0_CFG_H * 4]; // Max 32bpp
+    uint8_t vram[WAGN0_CFG_W * WAGN0_CFG_H * (WAGN0_CFG_BPP == 24 ? 3 : (WAGN0_CFG_BPP / 8))]; // 24bpp→3, 32→4, 16→2, 8→1
     uint8_t audio_buffer[16384];
 } _wagn0_rom;
 
@@ -164,11 +164,6 @@ static inline float lerp(float a, float b, float t) {
     return a + (b - a) * t;
 }
 
-static inline float dist(float x1, float y1, float x2, float y2) {
-    float dx = x2 - x1;
-    float dy = y2 - y1;
-    return dx * dx + dy * dy;  // squared distance for speed
-}
 
 static inline float sqrt(float x) {
     // Newton's method approximation
@@ -179,6 +174,17 @@ static inline float sqrt(float x) {
     }
     return guess;
 }
+
+static inline float dist_sq(float x1, float y1, float x2, float y2) {
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+    return dx * dx + dy * dy;  // squared distance — fast, no sqrt
+}
+
+static inline float dist(float x1, float y1, float x2, float y2) {
+    return sqrt(dist_sq(x1, y1, x2, y2));
+}
+
 
 static inline float wabs(float x) {
     return x < 0 ? -x : x;
@@ -209,11 +215,15 @@ static inline float cos(float x) {
     return sin(x + HALF_PI);
 }
 
+static uint32_t _wagn0_rng_seed = 12345;
+
+static inline void random_seed(uint32_t seed) {
+    _wagn0_rng_seed = seed ? seed : 1;
+}
+
 static inline int random_int(int min_val, int max_val) {
-    // Simple LCG random
-    static uint32_t seed = 12345;
-    seed = seed * 1103515245 + 12345;
-    return min_val + (seed >> 16) % (max_val - min_val + 1);
+    _wagn0_rng_seed = _wagn0_rng_seed * 1103515245 + 12345;
+    return min_val + (int)((_wagn0_rng_seed >> 16) % (uint32_t)(max_val - min_val + 1));
 }
 
 static inline float random(float min_val, float max_val) {
@@ -274,6 +284,9 @@ Canvas canvas_sub(Canvas src, int x, int y, int w, int h);
 
 void clear(Canvas c, pixel_t color);
 void draw_rect(Canvas c, int x, int y, int w, int h, pixel_t color);
+ void draw_rect_outline(Canvas c, int x, int y, int w, int h, pixel_t color);
+void draw_circle(Canvas c, int cx, int cy, int radius, pixel_t color);
+void draw_circle_outline(Canvas c, int cx, int cy, int radius, pixel_t color);
 void draw_ellipse(Canvas c, int x, int y, int w, int h, pixel_t color);
 void draw_line(Canvas c, int x1, int y1, int x2, int y2, pixel_t color);
 void draw_pixel(Canvas c, int x, int y, pixel_t color);
@@ -300,12 +313,15 @@ int text_width(const char* text);
 // IMAGE FUNCTIONS
 // ============================================
 
+Canvas canvas_create(int w, int h, int bpp);
 Canvas img_create(const void* data, int width, int height, int bpp);
 void draw_canvas(Canvas c, Canvas img, int x, int y);
 void draw_canvas_scaled(Canvas c, Canvas img, int x, int y, int w, int h);
 void draw_canvas_ex(Canvas c, Canvas img, int x, int y, int use_color_key, uint32_t color_key);
 void draw_canvas_scaled_ex(Canvas c, Canvas img, int x, int y, int w, int h, int use_color_key, uint32_t color_key);
 Canvas img_load(const uint8_t* data, size_t size);
+static inline pixel_t lerp_color(pixel_t a, pixel_t b, float t);
+static inline int text_height(void);
 
 // ============================================
 // AUDIO FUNCTIONS
@@ -327,6 +343,7 @@ typedef struct {
 } Wagn0Audio;
 
 void audio_play(const Wagn0Audio* audio);
+void audio_stop(Wagn0Audio* audio);
 int  audio_is_playing(void);
 
 // Decoder wrappers — implementation is guarded by WAGN0_NO_AUDIO_DECODE
@@ -417,6 +434,16 @@ void audio_play(const Wagn0Audio* audio) {
     }
 }
 
+void audio_stop(Wagn0Audio* audio) {
+    if (!audio) return;
+    for (int i = 0; i < WAGN0_MAX_AUDIO_PLAYING; i++) {
+        if (_wagn0_playing[i].active &&
+            _wagn0_playing[i].samples == audio->samples) {
+            _wagn0_playing[i].active = 0;
+        }
+    }
+}
+
 int audio_is_playing(void) {
     for (int i = 0; i < WAGN0_MAX_AUDIO_PLAYING; i++) {
         if (_wagn0_playing[i].active) return 1;
@@ -444,7 +471,9 @@ __attribute__((weak)) void fill_audio(void) {
             for (int j = 0; j < WAGN0_MAX_AUDIO_PLAYING; j++) {
                 if (_wagn0_playing[j].active) {
                     any_playing = 1;
-                    mixed += _wagn0_playing[j].samples[_wagn0_playing[j].read_pos++];
+                    int16_t sample = _wagn0_playing[j].samples[_wagn0_playing[j].read_pos];
+                    mixed += sample;
+                    _wagn0_playing[j].read_pos++;
                     if (_wagn0_playing[j].read_pos >= _wagn0_playing[j].num_samples) {
                         _wagn0_playing[j].active = 0;
                     }
@@ -582,6 +611,11 @@ Canvas canvas_sub(Canvas src, int x, int y, int w, int h) {
 void clear(Canvas c, pixel_t color) {
     size_t n = (size_t)c.width * c.height;
     if (c.bpp == 32) { uint32_t* p = (uint32_t*)c.pixels; while (n--) *p++ = (uint32_t)color; }
+    else if (c.bpp == 24) {
+        uint8_t* p = (uint8_t*)c.pixels;
+        uint8_t r = color & 0xFF, g = (color >> 8) & 0xFF, b = (color >> 16) & 0xFF;
+        while (n--) { *p++ = r; *p++ = g; *p++ = b; }
+    }
     else if (c.bpp == 16) { uint16_t* p = (uint16_t*)c.pixels; while (n--) *p++ = (uint16_t)color; }
     else { uint8_t* p = (uint8_t*)c.pixels; while (n--) *p++ = (uint8_t)color; }
 }
@@ -590,6 +624,30 @@ void draw_rect(Canvas c, int x, int y, int w, int h, pixel_t color) {
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
                         (size_t)c.stride, c.bpp };
     olivec_rect(oc, x, y, w, h, color);
+}
+
+void draw_rect_outline(Canvas c, int x, int y, int w, int h, pixel_t color) {
+    draw_rect(c, x,         y,         w, 1, color);
+    draw_rect(c, x,         y + h - 1, w, 1, color);
+    draw_rect(c, x,         y,         1, h, color);
+    draw_rect(c, x + w - 1, y,         1, h, color);
+}
+
+void draw_circle(Canvas c, int cx, int cy, int radius, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    // Filled circle using scanlines
+    for (int y = -radius; y <= radius; y++) {
+        int dx = (int)sqrt((float)(radius * radius - y * y));
+        for (int x = -dx; x <= dx; x++)
+            olivec_set_pixel(oc, cx + x, cy + y, color);
+    }
+}
+
+void draw_circle_outline(Canvas c, int cx, int cy, int radius, pixel_t color) {
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
+                        (size_t)c.stride, c.bpp };
+    olivec_circle(oc, cx, cy, radius, color);
 }
 
 void draw_ellipse(Canvas c, int x, int y, int w, int h, pixel_t color) {
@@ -683,7 +741,15 @@ int text_width(const char* text_str) {
 // IMAGE FUNCTIONS IMPLEMENTATION
 // ============================================
 
- Canvas img_create(const void* data, int width, int height, int bpp) {
+Canvas canvas_create(int w, int h, int bpp) {
+    size_t bpp_bytes = (bpp == 24) ? 3 : (bpp / 8);
+    void* px = malloc((size_t)w * h * bpp_bytes);
+    if (!px) return (Canvas){0};
+    Canvas c = { px, w, h, w, (uint8_t)bpp };
+    return c;
+}
+
+Canvas img_create(const void* data, int width, int height, int bpp) {
     Canvas img = { (void*)data, width, height, width, (uint8_t)bpp };
     return img;
  }
@@ -707,7 +773,18 @@ static inline Color _pixel_to_rgba(Canvas img, int index) {
     return c;
 }
 
-// Helper: write RGBA to canvas with runtime BPP conversion
+static inline pixel_t lerp_color(pixel_t a, pixel_t b, float t) {
+    uint8_t ar = a & 0xFF,        ag = (a >> 8) & 0xFF,  ab_ = (a >> 16) & 0xFF;
+    uint8_t br = b & 0xFF,        bg = (b >> 8) & 0xFF,  bb_ = (b >> 16) & 0xFF;
+    uint8_t r = (uint8_t)(ar + (br - ar) * t);
+    uint8_t g = (uint8_t)(ag + (bg - ag) * t);
+    uint8_t bv = (uint8_t)(ab_ + (bb_ - ab_) * t);
+    return rgb(r, g, bv);
+}
+
+static inline int text_height(void) {
+    return (int)(olivec_default_font.height * (size_t)_wagn0_text_size);
+}
 static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     if (x < 0 || x >= c.width || y < 0 || y >= c.height) return;
     if (c.bpp == 32) ((uint32_t*)c.pixels)[y * c.stride + x] = r | (g<<8) | (b<<16) | (a<<24);

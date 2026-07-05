@@ -1,0 +1,9 @@
+{
+    "name": "test_api",
+    "width": 320,
+    "height": 240,
+    "scale": 3,
+    "bpp": 32,
+    "memory": 16777216,
+    "src": ["main.c"]
+}
