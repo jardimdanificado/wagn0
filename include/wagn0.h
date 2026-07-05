@@ -394,29 +394,44 @@ void stop_all_sounds(void) {
     }
 }
 
-static Wagn0Audio _wagn0_playing = {0};
+#define WAGN0_MAX_AUDIO_PLAYING 8
+static Wagn0Audio _wagn0_playing[WAGN0_MAX_AUDIO_PLAYING] = {0};
 
 void audio_play(const Wagn0Audio* audio) {
     if (audio && audio->samples && audio->num_samples > 0) {
-        _wagn0_playing = *audio;
-        _wagn0_playing.read_pos = 0;
-        _wagn0_playing.active = 1;
-        w_audio_size = sizeof(w_audio_buffer);
-        w_audio_sample_rate = audio->sample_rate;
-        w_audio_bpp = 2;
-        w_audio_channels = 1;
-        w_audio_write = 0;
-        w_audio_read = 0;
+        int slot = -1;
+        int active_count = 0;
+        for (int i = 0; i < WAGN0_MAX_AUDIO_PLAYING; i++) {
+            if (!_wagn0_playing[i].active && slot == -1) slot = i;
+            if (_wagn0_playing[i].active) active_count++;
+        }
+        if (slot == -1) slot = 0; // overwrite first if full
+        
+        _wagn0_playing[slot] = *audio;
+        _wagn0_playing[slot].read_pos = 0;
+        _wagn0_playing[slot].active = 1;
+        
+        if (active_count == 0) {
+            w_audio_size = sizeof(w_audio_buffer);
+            w_audio_sample_rate = audio->sample_rate;
+            w_audio_bpp = 2;
+            w_audio_channels = 1;
+            w_audio_write = 0;
+            w_audio_read = 0;
+        }
     }
 }
 
 int audio_is_playing(void) {
-    return _wagn0_playing.active;
+    for (int i = 0; i < WAGN0_MAX_AUDIO_PLAYING; i++) {
+        if (_wagn0_playing[i].active) return 1;
+    }
+    return 0;
 }
 
 #ifndef WAGN0_CUSTOM_FILL_AUDIO
 __attribute__((weak)) void fill_audio(void) {
-    if (_wagn0_playing.active) {
+    if (audio_is_playing()) {
         uint32_t w = w_audio_write;
         uint32_t r = w_audio_read;
         uint32_t size = w_audio_size;
@@ -425,15 +440,32 @@ __attribute__((weak)) void fill_audio(void) {
         if (free < 2) return;
         uint32_t to_write = free / 2;
         if (to_write > 2048) to_write = 2048;
-        uint32_t remaining = _wagn0_playing.num_samples - _wagn0_playing.read_pos;
-        if (to_write > remaining) to_write = remaining;
-        if (to_write == 0) { _wagn0_playing.active = 0; return; }
-        int16_t* buf = (int16_t*)w_audio_buffer;
+
+        int16_t* audio = (int16_t*)w_audio_buffer;
+        
         for (uint32_t i = 0; i < to_write; i++) {
-            buf[w / 2] = _wagn0_playing.samples[_wagn0_playing.read_pos++];
-            w = (w + 2) % size;
+            int32_t mixed = 0;
+            int any_playing = 0;
+            for (int j = 0; j < WAGN0_MAX_AUDIO_PLAYING; j++) {
+                if (_wagn0_playing[j].active) {
+                    any_playing = 1;
+                    mixed += _wagn0_playing[j].samples[_wagn0_playing[j].read_pos++];
+                    if (_wagn0_playing[j].read_pos >= _wagn0_playing[j].num_samples) {
+                        _wagn0_playing[j].active = 0;
+                    }
+                }
+            }
+            if (!any_playing) {
+                to_write = i;
+                break;
+            }
+            if (mixed > 32767) mixed = 32767;
+            else if (mixed < -32768) mixed = -32768;
+            audio[(w / 2 + i) % (size / 2)] = (int16_t)mixed;
         }
-        w_audio_write = w;
+        if (to_write > 0) {
+            w_audio_write = (w + to_write * 2) % size;
+        }
         return;
     }
 

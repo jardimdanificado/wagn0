@@ -42,7 +42,7 @@ load_config() {
     tmp=$(grep -o '"scale"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && SCALE="${tmp#*:}" && SCALE="${SCALE# }"
     tmp=$(grep -o '"bpp"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && BPP="${tmp#*:}" && BPP="${BPP# }"
     tmp=$(grep -o '"memory"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && MEMORY="${tmp#*:}" && MEMORY="${MEMORY# }"
-    SRC=$(grep -oP '"[^"]*\.c"' wagn0.json 2>/dev/null | sed 's/"//g' | tr '\n' ' ')
+    SRC=$(grep -oP '"[^"]*\.c"' wagn0.json 2>/dev/null | sed 's/"//g' | tr '\n' ' ' || true)
     [ -n "$NAME" ] || NAME="$(basename "$(pwd)")"
 }
 
@@ -77,7 +77,7 @@ build_host() {
         return 1
     fi
     local wasm3_src
-    wasm3_src=$(find "$wasm3_dir" -maxdepth 1 -name '*.c' 2>/dev/null | tr '\n' ' ')
+    wasm3_src=$(find "$wasm3_dir" -maxdepth 1 -name '*.c' 2>/dev/null | tr '\n' ' ' || true)
     [ -z "$wasm3_src" ] && { err "wasm3 source not found at $wasm3_dir"; return 1; }
     gcc -I"$wasm3_dir" -O2 "$host_src" $wasm3_src -o "$out" -lSDL2 -lm && \
         ok "Host built: $out" || { err "Host build failed"; return 1; }
@@ -99,7 +99,7 @@ build_wasm() {
     else
         src_files=$(echo *.c)
     fi
-    src_files=$(echo "$src_files" | tr ' ' '\n' | grep -v '^\*' | tr '\n' ' ')
+    src_files=$(echo "$src_files" | tr ' ' '\n' | grep -v '^\*' | tr '\n' ' ' || true)
     [ -z "$src_files" ] && { err "No source files found"; return 1; }
 
     local clang

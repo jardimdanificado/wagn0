@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define ARENA_SIZE (6 * 1024 * 1024)  // 6MB
+#define ARENA_SIZE (120 * 1024 * 1024)  // 120MB
 #define HEADER_SIZE 8
 
 static char arena[ARENA_SIZE];
