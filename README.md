@@ -25,6 +25,7 @@ to the canvas format automatically.
 |---|---|---|
 | 8   | RGB332 | 1 byte per pixel |
 | 16  | RGB565 | 2 bytes per pixel |
+| 24  | RGB888 | 3 bytes per pixel |
 | 32  | RGBA8888 | 4 bytes per pixel |
 
 Colors are always specified as RGBA8888 (`0xAABBGGRR`) and converted
@@ -42,6 +43,7 @@ draw_pixel(screen, 10, 10, 0xFFFF0000);          // same, raw ARGB
 ```c
 Canvas screen;         // global canvas (wraps w_vram)
 Canvas c = canvas_sub(screen, x, y, w, h);  // sub-canvas (viewport, HUD)
+Canvas offscreen = canvas_create(w, h, bpp); // dynamically allocated canvas
 ```
 
 ### Primitives
@@ -49,6 +51,9 @@ Canvas c = canvas_sub(screen, x, y, w, h);  // sub-canvas (viewport, HUD)
 ```c
 clear(screen, color);                              // fill entire canvas
 draw_rect(screen, x, y, w, h, color);              // filled rectangle
+draw_rect_outline(screen, x, y, w, h, color);      // rectangle outline
+draw_circle(screen, cx, cy, r, color);             // filled circle
+draw_circle_outline(screen, cx, cy, r, color);     // circle outline
 draw_ellipse(screen, x, y, w, h, color);            // filled ellipse
 draw_line(screen, x1, y1, x2, y2, color);           // line
 draw_pixel(screen, x, y, color);                   // single pixel
@@ -67,6 +72,7 @@ pixel_set(canvas, x, y, color);                    // write pixel
 draw_text(screen, "Hello", x, y, color);
 text_size(int);
 int text_width(const char*);
+int text_height(void);
 ```
 
 ### Images
@@ -96,6 +102,7 @@ int audio_is_playing(void);
 ```c
 Wagn0Audio snd = wav_decode(data, size);    // or mp3_decode, ogg_decode
 audio_play(&snd);                           // start playback
+audio_stop(&snd);                           // stop playback
 audio_is_playing();                         // still playing?
 __attribute__((weak)) void fill_audio(void); // hook to stream custom PCM
 ```
@@ -112,9 +119,11 @@ set_fps(30);                    // request 30 FPS from the host
 
 ```c
 float map(v, s1, s2, t1, t2);  float constrain(v, min, max);
-float lerp(a, b, t);            float dist(x1, y1, x2, y2);
-float sin(x);  float cos(x);
-int   random(min, max);
+float lerp(a, b, t);            pixel_t lerp_color(a, b, t);
+float dist(x1, y1, x2, y2);     float dist_sq(x1, y1, x2, y2);
+float sin(x);  float cos(x);    float sqrt(x);
+void  random_seed(uint32_t);
+int   random_int(min, max);     int random(min, max);
 Vec2  vec2(x, y);  vec2_add(a, b);  // etc.
 ```
 
