@@ -5,61 +5,65 @@ static const uint32_t fps_values[FPS_COUNT] = { 60, 45, 30, 15 };
 static int fps_index = 0;
 static uint32_t last_switch = 0;
 
-void draw() {
-    static int _init = 0;
-    if (!_init) { _init = 1;
-        set_fps(fps_values[0]);
-        last_switch = w_ticks;
+void setup() {
+    set_fps(fps_values[0]);
+    last_switch = w_ticks;
+}
+
+static void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
+    char str[16];
+    int i = 0;
+    if (n == 0) { str[i++] = '0'; }
+    else {
+        int tmp = n;
+        while (tmp > 0) { str[i++] = '0' + (tmp % 10); tmp /= 10; }
+        for (int j = 0; j < i/2; j++) {
+            char t = str[j]; str[j] = str[i-1-j]; str[i-1-j] = t;
+        }
     }
+    str[i] = '\0';
+    draw_text(c, str, x, y, color);
+}
 
-    clear(screen, BLACK);
-
-    // Switch FPS every second
+void draw() {
+    clear(screen, rgb(15, 15, 15));
+    
     uint32_t now = w_ticks;
-    if (now - last_switch >= 1000) {
+    if (now - last_switch >= 2000) {
         last_switch = now;
         fps_index = (fps_index + 1) % FPS_COUNT;
         set_fps(fps_values[fps_index]);
     }
-
-    // Build status strings
-    char target_str[32], actual_str[32], dt_str[32];
-    int n;
-
-    n = fps_values[fps_index];
-    int ti = 0;
-    if (n >= 100) target_str[ti++] = '0' + (n / 100);
-    if (n >= 10)  target_str[ti++] = '0' + ((n / 10) % 10);
-    target_str[ti++] = '0' + (n % 10);
-    target_str[ti] = 0;
-
-    n = (int)wagn0.fps;
-    ti = 0;
-    if (n >= 100) target_str[ti++] = '0' + (n / 100);
-    /* reuse target_str as temp — rewrite actual_str properly */
-    char buf_actual[32];
-    ti = 0;
-    if (n >= 100) buf_actual[ti++] = '0' + (n / 100);
-    if (n >= 10)  buf_actual[ti++] = '0' + ((n / 10) % 10);
-    buf_actual[ti++] = '0' + (n % 10);
-    buf_actual[ti] = 0;
-
-    // Frame time in ms
-    int dt_ms = (int)(wagn0.delta_time * 1000.0f);
-    char buf_dt[32];
-    ti = 0;
-    if (dt_ms >= 100) buf_dt[ti++] = '0' + (dt_ms / 100);
-    if (dt_ms >= 10)  buf_dt[ti++] = '0' + ((dt_ms / 10) % 10);
-    buf_dt[ti++] = '0' + (dt_ms % 10);
-    buf_dt[ti] = 0;
-
-    draw_text(screen, "Target FPS:", 10, 20, WHITE);
-    draw_text(screen, target_str, 140, 20, YELLOW);
-
-    draw_text(screen, "Actual FPS:", 10, 50, WHITE);
-    draw_text(screen, buf_actual, 140, 50, buf_actual[0] != '0' ? GREEN : RED);
-
-    draw_text(screen, "Frame time:", 10, 80, WHITE);
-    draw_text(screen, buf_dt, 140, 80, CYAN);
-    draw_text(screen, "ms", 180, 80, CYAN);
+    
+    // Rotating wheel
+    int cx = 220, cy = 120, r = 60;
+    float angle = now * 0.003f;
+    
+    draw_circle_outline(screen, cx, cy, r, CYAN);
+    for (int i = 0; i < 8; i++) {
+        float a = angle + i * (TWO_PI / 8.0f);
+        int px = cx + (int)(cos(a) * r);
+        int py = cy + (int)(sin(a) * r);
+        draw_line(screen, cx, cy, px, py, lerp_color(BLUE, CYAN, (float)i/7.0f));
+    }
+    
+    // Panel
+    draw_rect_outline(screen, 10, 40, 140, 160, rgb(60, 60, 60));
+    draw_text(screen, "FPS TEST", 45, 50, WHITE);
+    draw_line(screen, 10, 70, 150, 70, rgb(60, 60, 60));
+    
+    draw_text(screen, "Target:", 20, 90, GRAY);
+    draw_number(screen, fps_values[fps_index], 90, 90, WHITE);
+    
+    draw_text(screen, "Actual:", 20, 130, GRAY);
+    
+    // Color based on performance
+    float ratio = (float)wagn0.fps / (float)fps_values[fps_index];
+    if (ratio > 1.0f) ratio = 1.0f;
+    pixel_t fps_color = lerp_color(RED, GREEN, ratio);
+    draw_number(screen, wagn0.fps, 90, 130, fps_color);
+    
+    draw_text(screen, "Delta:", 20, 170, GRAY);
+    draw_number(screen, (int)(wagn0.delta_time * 1000.0f), 90, 170, YELLOW);
+    draw_text(screen, "ms", 115, 170, YELLOW);
 }

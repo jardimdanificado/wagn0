@@ -3,51 +3,68 @@
 static Canvas sheet;
 static int sprite_w = 24, sprite_h = 24;
 
-typedef struct { float x, y, vx, vy; int w, h; } Sprite;
+typedef struct { float x, y, vx, vy; int w, h; pixel_t tint; } Sprite;
 #define SPRITE_COUNT 200
 static Sprite sprites[SPRITE_COUNT];
-static uint32_t last_time = 0;
-static int frame_count = 0, fps = 0;
-static char fps_text[16] = "fps: --";
-static uint32_t seed = 12345;
-static uint32_t rnd() { seed = seed * 1103515245 + 12345; return (seed / 65536) % 32768; }
 
 void preload() {
     load_image(&sheet, "sprite.png");
 }
 
-void draw() {
-    static int _init = 0;
-    if (!_init) { _init = 1;
-        for (int i = 0; i < SPRITE_COUNT; i++) {
-        sprites[i].w = sprite_w; sprites[i].h = sprite_h;
-        sprites[i].x = (float)(rnd() % (320 - sprite_w));
-        sprites[i].y = (float)(rnd() % (240 - sprite_h));
-        sprites[i].vx = (float)((rnd() % 4) + 1) * (rnd() % 2 ? -1 : 1);
-        sprites[i].vy = (float)((rnd() % 4) + 1) * (rnd() % 2 ? -1 : 1);
-        }
-        last_time = w_ticks;
-    }
-
-    uint32_t now = w_ticks; frame_count++;
-    if (now - last_time >= 1000) {
-        fps = frame_count; frame_count = 0; last_time = now;
-        int n = fps;
-        for (int i = 0; i < 5; i++) fps_text[i] = "fps: "[i];
-        fps_text[5] = '0' + (n / 100); if (fps_text[5] == '0') fps_text[5] = ' ';
-        fps_text[6] = '0' + ((n / 10) % 10); if (fps_text[5] == ' ' && fps_text[6] == '0') fps_text[6] = ' ';
-        fps_text[7] = '0' + (n % 10); if (fps_text[6] == ' ') fps_text[7] = ' ';
-        fps_text[8] = 0;
-    }
-
-    clear(screen, BLACK);
-    if (!sheet.pixels) return;
-
+void setup() {
+    set_fps(60);
+    random_seed(42);
     for (int i = 0; i < SPRITE_COUNT; i++) {
-        sprites[i].x += sprites[i].vx; sprites[i].y += sprites[i].vy;
-        if (sprites[i].x <= 0 || sprites[i].x + sprites[i].w >= 320) sprites[i].vx *= -1;
-        if (sprites[i].y <= 0 || sprites[i].y + sprites[i].h >= 240) sprites[i].vy *= -1;
-        draw_canvas_scaled(screen, sheet, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h);
+        sprites[i].w = sprite_w; 
+        sprites[i].h = sprite_h;
+        sprites[i].x = (float)(random_int(0, 320 - sprite_w));
+        sprites[i].y = (float)(random_int(0, 240 - sprite_h));
+        sprites[i].vx = (float)random_int(1, 4) * (random_int(0, 1) ? -1 : 1);
+        sprites[i].vy = (float)random_int(1, 4) * (random_int(0, 1) ? -1 : 1);
+        sprites[i].tint = lerp_color(CYAN, MAGENTA, (float)i / SPRITE_COUNT);
+    }
+}
+
+static void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
+    char str[16];
+    int i = 0;
+    if (n == 0) { str[i++] = '0'; }
+    else {
+        int tmp = n;
+        while (tmp > 0) { str[i++] = '0' + (tmp % 10); tmp /= 10; }
+        for (int j = 0; j < i/2; j++) {
+            char t = str[j]; str[j] = str[i-1-j]; str[i-1-j] = t;
+        }
+    }
+    str[i] = '\0';
+    draw_text(c, str, x, y, color);
+}
+
+void draw() {
+    // Background gradient
+    for (int y = 0; y < 240; y += 4) {
+        pixel_t col = lerp_color(rgb(10, 10, 30), rgb(30, 10, 40), (float)y / 240.0f);
+        draw_rect(screen, 0, y, 320, 4, col);
     }
 
+    if (sheet.pixels) {
+        for (int i = 0; i < SPRITE_COUNT; i++) {
+            sprites[i].x += sprites[i].vx; 
+            sprites[i].y += sprites[i].vy;
+            if (sprites[i].x <= 0 || sprites[i].x + sprites[i].w >= 320) sprites[i].vx *= -1;
+            if (sprites[i].y <= 0 || sprites[i].y + sprites[i].h >= 240) sprites[i].vy *= -1;
+            
+            // Draw a tinted rectangle behind the sprite for flavor
+            draw_rect(screen, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h, sprites[i].tint);
+            draw_canvas_scaled(screen, sheet, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h);
+        }
+    }
+
+    // UI
+    draw_rect(screen, 5, 5, 70, 20, rgb(0, 0, 0));
+    draw_rect_outline(screen, 5, 5, 70, 20, GRAY);
+    draw_text(screen, "FPS:", 10, 10, GRAY);
+    draw_number(screen, wagn0.fps, 40, 10, WHITE);
+    
+    draw_text(screen, "200 Bouncing Sprites", 90, 10, WHITE);
 }

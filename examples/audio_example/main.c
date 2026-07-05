@@ -8,33 +8,54 @@ static int active_count(void) {
     return n;
 }
 
+void setup() {
+    set_fps(60);
+}
+
 void draw() {
-    clear(screen, BLACK);
+    clear(screen, rgb(20, 20, 30));
 
-    draw_text(screen, "press 1-5 to play", 10, 10, WHITE);
-    draw_text(screen, "1=A4  2=C5  3=E5  4=G5  5=noise", 10, 30, WHITE);
-
-    char buf[16];
-    int n = active_count();
-    int i = 0;
-    if (n == 0) { buf[i++] = '0'; }
-    else {
-        int tmp = n;
-        while (tmp > 0) { buf[i++] = '0' + (tmp % 10); tmp /= 10; }
-        for (int j = 0; j < i/2; j++) {
-            char t = buf[j]; buf[j] = buf[i-1-j]; buf[i-1-j] = t;
+    // Sound wave visualization
+    int count = active_count();
+    if (count > 0) {
+        float r_base = 60.0f + sin(w_ticks * 0.01f) * 20.0f;
+        for (int i = 0; i < count; i++) {
+            pixel_t col = lerp_color(CYAN, MAGENTA, (float)i / (float)(count > 1 ? count - 1 : 1));
+            draw_circle_outline(screen, 160, 100, (int)r_base + i * 15, col);
         }
     }
-    buf[i] = 0;
 
-    draw_text(screen, "active:", 10, 60, WHITE);
-    draw_text(screen, buf, 80, 60, WHITE);
+    draw_text(screen, "Synth Piano Demo", 100, 20, WHITE);
+
+    char buf[32];
+    buf[0] = 'A'; buf[1] = 'c'; buf[2] = 't'; buf[3] = 'i'; buf[4] = 'v'; buf[5] = 'e'; buf[6] = ':'; buf[7] = ' ';
+    buf[8] = '0' + count; buf[9] = 0;
+    draw_text(screen, buf, 130, 40, GRAY);
+
+    // Keyboard UI
+    const char* labels[] = {"A4", "C5", "E5", "G5", "Nse"};
+    const char* keys[] = {"1", "2", "3", "4", "5"};
+    for (int i = 0; i < 5; i++) {
+        int kx = 35 + i * 50;
+        int ky = 160;
+        // Check if key is pressed for highlight
+        int is_pressed = wagn0.keys[30 + i]; // 1=30, 2=31, etc.
+        
+        pixel_t fill = is_pressed ? rgb(100, 200, 100) : rgb(40, 40, 50);
+        pixel_t outline = is_pressed ? WHITE : GRAY;
+        
+        draw_rect(screen, kx, ky, 40, 60, fill);
+        draw_rect_outline(screen, kx, ky, 40, 60, outline);
+        
+        draw_text(screen, labels[i], kx + 10, ky + 10, outline);
+        draw_text(screen, keys[i], kx + 16, ky + 40, is_pressed ? BLACK : WHITE);
+    }
 }
 
 void key_pressed(int key) {
-    if (key == 0x1E) play_tone(440.0f, 0.5f, 0.4f);  // 1: A4
-    if (key == 0x1F) play_tone(523.0f, 0.5f, 0.4f);  // 2: C5
-    if (key == 0x20) play_tone(659.0f, 0.5f, 0.4f);  // 3: E5
-    if (key == 0x21) play_tone(784.0f, 0.5f, 0.4f);  // 4: G5
-    if (key == 0x22) play_noise(0.3f, 0.3f);          // 5: noise burst
+    if (key == 30) play_tone(440.0f, 0.5f, 0.4f);  // 1: A4
+    if (key == 31) play_tone(523.0f, 0.5f, 0.4f);  // 2: C5
+    if (key == 32) play_tone(659.0f, 0.5f, 0.4f);  // 3: E5
+    if (key == 33) play_tone(784.0f, 0.5f, 0.4f);  // 4: G5
+    if (key == 34) play_noise(0.3f, 0.3f);         // 5: noise burst
 }
