@@ -1,8 +1,8 @@
-#include "wagn0.h"
+#include "wagner.h"
 
-static Wagn0Audio track1;
-static Wagn0Audio track2;
-static Wagn0Audio track3;
+static WagnerAudio track1;
+static WagnerAudio track2;
+static WagnerAudio track3;
 
 void preload() {
     load_audio(&track1, "audio.mp3");

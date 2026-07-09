@@ -1,9 +1,9 @@
-# wagn0
+# wagner
 
 High-level game development API for Wagnostic.
 
 ```c
-#include "wagn0.h"
+#include "wagner.h"
 
 void draw() {
     clear(screen, BLUE);
@@ -14,11 +14,11 @@ void draw() {
 ## Bit Depth
 
 ```c
-#include "wagn0.h"
+#include "wagner.h"
 ```
 
 `pixel_t` is always `uint32_t` (RGBA8888). The canvas BPP is set at
-runtime via `w_setup()` and `wagn0.json`. All drawing functions convert
+runtime via `w_setup()` and `wagner.json`. All drawing functions convert
 to the canvas format automatically.
 
 | `w_setup` BPP | Pixel format | Canvas buffer |
@@ -115,7 +115,7 @@ void preload() {
 }
 
 // Memory decoding
-Wagn0Audio snd = wav_decode(data, size);    // or mp3_decode, ogg_decode
+WagnerAudio snd = wav_decode(data, size);    // or mp3_decode, ogg_decode
 audio_play(&snd);                           // start playback
 audio_stop(&snd);                           // stop playback
 audio_is_playing();                         // still playing?
@@ -166,12 +166,12 @@ void key_pressed(int key);
 void key_released(int key);
 ```
 
-All callbacks must be defined. Use `#define WAGN0_NO_DEFAULT_CALLBACKS` before
-including `wagn0.h` if you define your own (to avoid weak-default conflicts).
+All callbacks must be defined. Use `#define WAGNER_NO_DEFAULT_CALLBACKS` before
+including `wagner.h` if you define your own (to avoid weak-default conflicts).
 
 ## Assets (VFS)
 
-Put files in `assets/`. They are bundled into the `.tar` Virtual File System automatically during `wagn0 build` and can be loaded dynamically at runtime:
+Put files in `assets/`. They are bundled into the `.tar` Virtual File System automatically during `wagner build` and can be loaded dynamically at runtime:
 
 ```c
 size_t size;
@@ -183,7 +183,7 @@ if (png_data) {
 
 uint8_t* wav_data = file_load("assets/jump.wav", &size);
 if (wav_data) {
-    Wagn0Audio sfx = wav_decode(wav_data, size);
+    WagnerAudio sfx = wav_decode(wav_data, size);
 }
 ```
 
@@ -199,36 +199,36 @@ file_save("save.txt", "score: 100", 10);
 ## Quick Start
 
 ```bash
-wagn0 new mygame
+wagner new mygame
 cd mygame
 # place PNGs in assets/, write main.c
-wagn0 build       # compiles with decoders and packages .tar VFS
-wagn0 run         # run with native host
-wagn0 run --runner sm   # use SpiderMonkey host
-wagn0 dev         # watch, rebuild, run
+wagner build       # compiles with decoders and packages .tar VFS
+wagner run         # run with native host
+wagner run --runner sm   # use SpiderMonkey host
+wagner dev         # watch, rebuild, run
 ```
 
 ## Structure
 
 ```
 lib/          decoders, shim, fake POSIX headers (for gifdec)
-include/      wagn0.h, wagnostic.h, olive.c
-examples/     12 example projects (each with wagn0.json)
-templates/    project skeleton for `wagn0 new`
+include/      wagner.h, wagnostic.h, olive.c
+examples/     12 example projects (each with wagner.json)
+templates/    project skeleton for `wagner new`
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `wagn0 new <name>` | Create project with `assets/` directory |
-| `wagn0 build` | Scan `assets/`, package into `.tar`, compile to WASM |
-| `wagn0 run [--runner native\|sm]` | Run with host |
-| `wagn0 dev [--runner native\|sm]` | Watch + rebuild + run |
+| `wagner new <name>` | Create project with `assets/` directory |
+| `wagner build` | Scan `assets/`, package into `.tar`, compile to WASM |
+| `wagner run [--runner native\|sm]` | Run with host |
+| `wagner dev [--runner native\|sm]` | Watch + rebuild + run |
 
 ## Credits
 
-wagn0 uses several third-party libraries. Many thanks to their authors:
+wagner uses several third-party libraries. Many thanks to their authors:
 
 | Library | Author | Link |
 |---|---|---|

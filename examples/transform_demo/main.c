@@ -1,4 +1,4 @@
-#include "wagn0.h"
+#include "wagner.h"
 
 static Canvas img = {0};
 

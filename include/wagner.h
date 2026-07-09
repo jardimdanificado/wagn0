@@ -1,5 +1,5 @@
-#ifndef WAGN0_H
-#define WAGN0_H
+#ifndef WAGNER_H
+#define WAGNER_H
 
 /**
  * WagnO - Easy Game Development API for Wagnostic
@@ -8,8 +8,8 @@
  * games and interactive applications for the Wagnostic WASM runtime.
  * 
  * Usage:
- *   #define WAGN0_IMPLEMENTATION
- *   #include "wagn0.h"
+ *   #define WAGNER_IMPLEMENTATION
+ *   #include "wagner.h"
  * 
  *   void draw() { ... }
  */
@@ -26,29 +26,29 @@
 // Wagnostic new API: ROM must provide a WagnosticState struct
 static struct {
     WagnosticState state;
-    uint8_t vram[WAGN0_CFG_W * WAGN0_CFG_H * (WAGN0_CFG_BPP == 24 ? 3 : (WAGN0_CFG_BPP / 8))]; // 24bpp→3, 32→4, 16→2, 8→1
+    uint8_t vram[WAGNER_CFG_W * WAGNER_CFG_H * (WAGNER_CFG_BPP == 24 ? 3 : (WAGNER_CFG_BPP / 8))]; // 24bpp→3, 32→4, 16→2, 8→1
     uint8_t audio_buffer[16384];
-} _wagn0_rom;
+} _wagner_rom;
 
-#define w_width _wagn0_rom.state.width
-#define w_height _wagn0_rom.state.height
-#define w_bpp _wagn0_rom.state.bpp
-#define w_scale _wagn0_rom.state.scale
-#define w_mouse_x _wagn0_rom.state.mouse_x
-#define w_mouse_y _wagn0_rom.state.mouse_y
-#define w_mouse_buttons _wagn0_rom.state.mouse_buttons
-#define w_keys _wagn0_rom.state.keys
-#define w_ticks _wagn0_rom.state.ticks
-#define w_target_fps _wagn0_rom.state.target_fps
-#define w_audio_size _wagn0_rom.state.audio_size
-#define w_audio_sample_rate _wagn0_rom.state.audio_sample_rate
-#define w_audio_bpp _wagn0_rom.state.audio_bpp
-#define w_audio_channels _wagn0_rom.state.audio_channels
-#define w_audio_write _wagn0_rom.state.audio_write
-#define w_audio_read _wagn0_rom.state.audio_read
-#define w_gamepad_buttons _wagn0_rom.state.gamepad_buttons
-#define w_vram _wagn0_rom.vram
-#define w_audio_buffer _wagn0_rom.audio_buffer
+#define w_width _wagner_rom.state.width
+#define w_height _wagner_rom.state.height
+#define w_bpp _wagner_rom.state.bpp
+#define w_scale _wagner_rom.state.scale
+#define w_mouse_x _wagner_rom.state.mouse_x
+#define w_mouse_y _wagner_rom.state.mouse_y
+#define w_mouse_buttons _wagner_rom.state.mouse_buttons
+#define w_keys _wagner_rom.state.keys
+#define w_ticks _wagner_rom.state.ticks
+#define w_target_fps _wagner_rom.state.target_fps
+#define w_audio_size _wagner_rom.state.audio_size
+#define w_audio_sample_rate _wagner_rom.state.audio_sample_rate
+#define w_audio_bpp _wagner_rom.state.audio_bpp
+#define w_audio_channels _wagner_rom.state.audio_channels
+#define w_audio_write _wagner_rom.state.audio_write
+#define w_audio_read _wagner_rom.state.audio_read
+#define w_gamepad_buttons _wagner_rom.state.gamepad_buttons
+#define w_vram _wagner_rom.vram
+#define w_audio_buffer _wagner_rom.audio_buffer
 
 // No assets.h anymore. Using Wagnostic .tar TAR API for dynamic loading.
 
@@ -61,9 +61,9 @@ typedef uint32_t pixel_t;
 // ============================================
 
 static inline pixel_t rgb(uint8_t r, uint8_t g, uint8_t b) {
-#if WAGN0_CFG_BPP == 16
+#if WAGNER_CFG_BPP == 16
     return (uint32_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-#elif WAGN0_CFG_BPP == 8
+#elif WAGNER_CFG_BPP == 8
     return (uint32_t)(((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6));
 #else
     return (uint32_t)((0xFF << 24) | ((b) << 16) | ((g) << 8) | (r));
@@ -71,9 +71,9 @@ static inline pixel_t rgb(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 static inline pixel_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-#if WAGN0_CFG_BPP == 16
+#if WAGNER_CFG_BPP == 16
     return (uint32_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-#elif WAGN0_CFG_BPP == 8
+#elif WAGNER_CFG_BPP == 8
     return (uint32_t)(((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6));
 #else
     return (uint32_t)(((a) << 24) | ((b) << 16) | ((g) << 8) | (r));
@@ -93,13 +93,13 @@ static inline pixel_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
 #define ORANGE  rgb(255,165,0)
 #define PURPLE  rgb(128,0,128)
 
-// Config defaults — overridden by `wagn0 build` via -D flags
-#ifndef WAGN0_CFG_W
-#define WAGN0_CFG_W 320
-#define WAGN0_CFG_H 240
-#define WAGN0_CFG_BPP 16
-#define WAGN0_CFG_SCALE 2
-#define WAGN0_TITLE "WagnO"
+// Config defaults — overridden by `wagner build` via -D flags
+#ifndef WAGNER_CFG_W
+#define WAGNER_CFG_W 320
+#define WAGNER_CFG_H 240
+#define WAGNER_CFG_BPP 16
+#define WAGNER_CFG_SCALE 2
+#define WAGNER_TITLE "WagnO"
 #endif
 
 // ============================================
@@ -149,7 +149,7 @@ static struct {
     
     // Main canvas (wraps w_vram)
     void* canvas_pixels;
-} wagn0;
+} wagner;
 
 // The default screen canvas — initialized in wupdate()
 Canvas screen;
@@ -227,15 +227,15 @@ static inline float cos(float x) {
     return sin(x + HALF_PI);
 }
 
-static uint32_t _wagn0_rng_seed = 12345;
+static uint32_t _wagner_rng_seed = 12345;
 
 static inline void random_seed(uint32_t seed) {
-    _wagn0_rng_seed = seed ? seed : 1;
+    _wagner_rng_seed = seed ? seed : 1;
 }
 
 static inline int random_int(int min_val, int max_val) {
-    _wagn0_rng_seed = _wagn0_rng_seed * 1103515245 + 12345;
-    return min_val + (int)((_wagn0_rng_seed >> 16) % (uint32_t)(max_val - min_val + 1));
+    _wagner_rng_seed = _wagner_rng_seed * 1103515245 + 12345;
+    return min_val + (int)((_wagner_rng_seed >> 16) % (uint32_t)(max_val - min_val + 1));
 }
 
 static inline float random(float min_val, float max_val) {
@@ -297,10 +297,10 @@ Canvas canvas_sub(Canvas src, int x, int y, int w, int h);
 typedef struct {
     float a, c, e;
     float b, d, f;
-} Wagn0Matrix;
+} WagnerMatrix;
 
 typedef struct {
-    Wagn0Matrix matrix;
+    WagnerMatrix matrix;
     Canvas* target;
     pixel_t fill_color;
     pixel_t stroke_color;
@@ -309,7 +309,7 @@ typedef struct {
     Canvas* texture;
     bool has_color_key;
     uint32_t color_key;
-} Wagn0RenderState;
+} WagnerRenderState;
 
 void push(void);
 void pop(void);
@@ -383,17 +383,17 @@ typedef struct {
     uint8_t bpp;
     uint32_t read_pos;
     uint8_t active;
-} Wagn0Audio;
+} WagnerAudio;
 
-void audio_play(const Wagn0Audio* audio);
-void audio_stop(Wagn0Audio* audio);
+void audio_play(const WagnerAudio* audio);
+void audio_stop(WagnerAudio* audio);
 int  audio_is_playing(void);
 
-// Decoder wrappers — implementation is guarded by WAGN0_NO_AUDIO_DECODE
+// Decoder wrappers — implementation is guarded by WAGNER_NO_AUDIO_DECODE
 // which the build auto-defines when no audio assets are present.
-Wagn0Audio wav_decode(const uint8_t* data, size_t size);
-Wagn0Audio mp3_decode(const uint8_t* data, size_t size);
-Wagn0Audio ogg_decode(const uint8_t* data, size_t size);
+WagnerAudio wav_decode(const uint8_t* data, size_t size);
+WagnerAudio mp3_decode(const uint8_t* data, size_t size);
+WagnerAudio ogg_decode(const uint8_t* data, size_t size);
 
 void set_fps(uint32_t fps);
 void set_fps(uint32_t fps) { w_target_fps = fps; }
@@ -402,9 +402,9 @@ void set_fps(uint32_t fps) { w_target_fps = fps; }
 // Weak so user code can override entirely.
 __attribute__((weak)) void fill_audio(void);
 
-#define WAGN0_MAX_TONES 8
-#define WAGN0_AUDIO_SAMPLE_RATE 22050
-#define WAGN0_AUDIO_FADE_SAMPLES 220  // 10ms at 22050Hz
+#define WAGNER_MAX_TONES 8
+#define WAGNER_AUDIO_SAMPLE_RATE 22050
+#define WAGNER_AUDIO_FADE_SAMPLES 220  // 10ms at 22050Hz
 
 typedef struct {
     uint8_t active;
@@ -412,28 +412,28 @@ typedef struct {
     float volume;          // 0.0..1.0
     uint32_t start_sample; // global sample count when triggered
     uint32_t duration_samples;
-} Wagn0Tone;
+} WagnerTone;
 
-static Wagn0Tone _wagn0_tones[WAGN0_MAX_TONES];
-static uint32_t _wagn0_audio_sample = 0;
-static uint8_t  _wagn0_audio_init = 0;
-static int16_t  _wagn0_sin_lut[256];
+static WagnerTone _wagner_tones[WAGNER_MAX_TONES];
+static uint32_t _wagner_audio_sample = 0;
+static uint8_t  _wagner_audio_init = 0;
+static int16_t  _wagner_sin_lut[256];
 
-static void _wagn0_init_sin_lut(void) {
+static void _wagner_init_sin_lut(void) {
     for (int i = 0; i < 256; i++) {
-        _wagn0_sin_lut[i] = (int16_t)(sin(i * TWO_PI / 256.0f) * 32767.0f);
+        _wagner_sin_lut[i] = (int16_t)(sin(i * TWO_PI / 256.0f) * 32767.0f);
     }
 }
 
 void play_tone(float freq, float duration, float volume) {
-    for (int i = 0; i < WAGN0_MAX_TONES; i++) {
-        if (!_wagn0_tones[i].active) {
-            _wagn0_tones[i].active = 1;
-            _wagn0_tones[i].freq = freq;
-            _wagn0_tones[i].volume = volume;
-            _wagn0_tones[i].start_sample = _wagn0_audio_sample;
-            _wagn0_tones[i].duration_samples =
-                (uint32_t)(duration * (float)WAGN0_AUDIO_SAMPLE_RATE);
+    for (int i = 0; i < WAGNER_MAX_TONES; i++) {
+        if (!_wagner_tones[i].active) {
+            _wagner_tones[i].active = 1;
+            _wagner_tones[i].freq = freq;
+            _wagner_tones[i].volume = volume;
+            _wagner_tones[i].start_sample = _wagner_audio_sample;
+            _wagner_tones[i].duration_samples =
+                (uint32_t)(duration * (float)WAGNER_AUDIO_SAMPLE_RATE);
             return;
         }
     }
@@ -444,27 +444,27 @@ void play_noise(float duration, float volume) {
 }
 
 void stop_all_sounds(void) {
-    for (int i = 0; i < WAGN0_MAX_TONES; i++) {
-        _wagn0_tones[i].active = 0;
+    for (int i = 0; i < WAGNER_MAX_TONES; i++) {
+        _wagner_tones[i].active = 0;
     }
 }
 
-#define WAGN0_MAX_AUDIO_PLAYING 8
-static Wagn0Audio _wagn0_playing[WAGN0_MAX_AUDIO_PLAYING] = {0};
+#define WAGNER_MAX_AUDIO_PLAYING 8
+static WagnerAudio _wagner_playing[WAGNER_MAX_AUDIO_PLAYING] = {0};
 
-void audio_play(const Wagn0Audio* audio) {
+void audio_play(const WagnerAudio* audio) {
     if (audio && audio->samples && audio->num_samples > 0) {
         int slot = -1;
         int active_count = 0;
-        for (int i = 0; i < WAGN0_MAX_AUDIO_PLAYING; i++) {
-            if (!_wagn0_playing[i].active && slot == -1) slot = i;
-            if (_wagn0_playing[i].active) active_count++;
+        for (int i = 0; i < WAGNER_MAX_AUDIO_PLAYING; i++) {
+            if (!_wagner_playing[i].active && slot == -1) slot = i;
+            if (_wagner_playing[i].active) active_count++;
         }
         if (slot == -1) slot = 0; // overwrite first if full
         
-        _wagn0_playing[slot] = *audio;
-        _wagn0_playing[slot].read_pos = 0;
-        _wagn0_playing[slot].active = 1;
+        _wagner_playing[slot] = *audio;
+        _wagner_playing[slot].read_pos = 0;
+        _wagner_playing[slot].active = 1;
         
         if (active_count == 0) {
             w_audio_size = sizeof(w_audio_buffer);
@@ -477,24 +477,24 @@ void audio_play(const Wagn0Audio* audio) {
     }
 }
 
-void audio_stop(Wagn0Audio* audio) {
+void audio_stop(WagnerAudio* audio) {
     if (!audio) return;
-    for (int i = 0; i < WAGN0_MAX_AUDIO_PLAYING; i++) {
-        if (_wagn0_playing[i].active &&
-            _wagn0_playing[i].samples == audio->samples) {
-            _wagn0_playing[i].active = 0;
+    for (int i = 0; i < WAGNER_MAX_AUDIO_PLAYING; i++) {
+        if (_wagner_playing[i].active &&
+            _wagner_playing[i].samples == audio->samples) {
+            _wagner_playing[i].active = 0;
         }
     }
 }
 
 int audio_is_playing(void) {
-    for (int i = 0; i < WAGN0_MAX_AUDIO_PLAYING; i++) {
-        if (_wagn0_playing[i].active) return 1;
+    for (int i = 0; i < WAGNER_MAX_AUDIO_PLAYING; i++) {
+        if (_wagner_playing[i].active) return 1;
     }
     return 0;
 }
 
-#ifndef WAGN0_CUSTOM_FILL_AUDIO
+#ifndef WAGNER_CUSTOM_FILL_AUDIO
 __attribute__((weak)) void fill_audio(void) {
     if (audio_is_playing()) {
         uint32_t w = w_audio_write;
@@ -511,14 +511,14 @@ __attribute__((weak)) void fill_audio(void) {
         for (uint32_t i = 0; i < to_write; i++) {
             int32_t mixed = 0;
             int any_playing = 0;
-            for (int j = 0; j < WAGN0_MAX_AUDIO_PLAYING; j++) {
-                if (_wagn0_playing[j].active) {
+            for (int j = 0; j < WAGNER_MAX_AUDIO_PLAYING; j++) {
+                if (_wagner_playing[j].active) {
                     any_playing = 1;
-                    int16_t sample = _wagn0_playing[j].samples[_wagn0_playing[j].read_pos];
+                    int16_t sample = _wagner_playing[j].samples[_wagner_playing[j].read_pos];
                     mixed += sample;
-                    _wagn0_playing[j].read_pos++;
-                    if (_wagn0_playing[j].read_pos >= _wagn0_playing[j].num_samples) {
-                        _wagn0_playing[j].active = 0;
+                    _wagner_playing[j].read_pos++;
+                    if (_wagner_playing[j].read_pos >= _wagner_playing[j].num_samples) {
+                        _wagner_playing[j].active = 0;
                     }
                 }
             }
@@ -536,15 +536,15 @@ __attribute__((weak)) void fill_audio(void) {
         return;
     }
 
-    if (!_wagn0_audio_init) {
-        _wagn0_init_sin_lut();
+    if (!_wagner_audio_init) {
+        _wagner_init_sin_lut();
         w_audio_size         = sizeof(w_audio_buffer);
-        w_audio_sample_rate  = WAGN0_AUDIO_SAMPLE_RATE;
+        w_audio_sample_rate  = WAGNER_AUDIO_SAMPLE_RATE;
         w_audio_bpp          = 2;
         w_audio_channels     = 1;
         w_audio_write        = 0;
         w_audio_read         = 0;
-        _wagn0_audio_init    = 1;
+        _wagner_audio_init    = 1;
     }
 
     uint32_t w    = w_audio_write;
@@ -554,7 +554,7 @@ __attribute__((weak)) void fill_audio(void) {
     uint32_t occupied = (w >= r) ? (w - r) : (size - r + w);
     if (occupied >= size - 1) return;
 
-    uint32_t bytes_to_write = WAGN0_AUDIO_FADE_SAMPLES * 2;
+    uint32_t bytes_to_write = WAGNER_AUDIO_FADE_SAMPLES * 2;
     if (bytes_to_write > (size - 1 - occupied)) {
         bytes_to_write = size - 1 - occupied;
     }
@@ -566,37 +566,37 @@ __attribute__((weak)) void fill_audio(void) {
 
     for (uint32_t i = 0; i < samples; i++) {
         int32_t mix = 0;
-        uint32_t gs = _wagn0_audio_sample + i;
+        uint32_t gs = _wagner_audio_sample + i;
 
-        for (int t = 0; t < WAGN0_MAX_TONES; t++) {
-            if (!_wagn0_tones[t].active) continue;
-            uint32_t elapsed = gs - _wagn0_tones[t].start_sample;
-            if (elapsed >= _wagn0_tones[t].duration_samples) {
-                _wagn0_tones[t].active = 0;
+        for (int t = 0; t < WAGNER_MAX_TONES; t++) {
+            if (!_wagner_tones[t].active) continue;
+            uint32_t elapsed = gs - _wagner_tones[t].start_sample;
+            if (elapsed >= _wagner_tones[t].duration_samples) {
+                _wagner_tones[t].active = 0;
                 continue;
             }
 
             float s;
-            if (_wagn0_tones[t].freq == 0.0f) {
+            if (_wagner_tones[t].freq == 0.0f) {
                 noise_seed = noise_seed * 1103515245u + 12345u;
                 s = (int16_t)(noise_seed >> 16) / 32768.0f;
             } else {
-                float phase = _wagn0_tones[t].freq * (float)gs
-                              / (float)WAGN0_AUDIO_SAMPLE_RATE;
+                float phase = _wagner_tones[t].freq * (float)gs
+                              / (float)WAGNER_AUDIO_SAMPLE_RATE;
                 uint8_t idx = (uint8_t)(phase * 256.0f);
-                s = _wagn0_sin_lut[idx] / 32768.0f;
+                s = _wagner_sin_lut[idx] / 32768.0f;
             }
 
             // 10ms fade in/out to avoid pops
             float fade = 1.0f;
-            uint32_t dur = _wagn0_tones[t].duration_samples;
-            if (elapsed < WAGN0_AUDIO_FADE_SAMPLES) {
-                fade = (float)elapsed / (float)WAGN0_AUDIO_FADE_SAMPLES;
-            } else if (elapsed > dur - WAGN0_AUDIO_FADE_SAMPLES) {
-                fade = (float)(dur - elapsed) / (float)WAGN0_AUDIO_FADE_SAMPLES;
+            uint32_t dur = _wagner_tones[t].duration_samples;
+            if (elapsed < WAGNER_AUDIO_FADE_SAMPLES) {
+                fade = (float)elapsed / (float)WAGNER_AUDIO_FADE_SAMPLES;
+            } else if (elapsed > dur - WAGNER_AUDIO_FADE_SAMPLES) {
+                fade = (float)(dur - elapsed) / (float)WAGNER_AUDIO_FADE_SAMPLES;
             }
 
-            mix += (int32_t)(s * _wagn0_tones[t].volume * fade * 32767.0f);
+            mix += (int32_t)(s * _wagner_tones[t].volume * fade * 32767.0f);
         }
 
         if (mix >  32767) mix =  32767;
@@ -606,15 +606,15 @@ __attribute__((weak)) void fill_audio(void) {
     }
 
     w_audio_write = w;
-    _wagn0_audio_sample += samples;
+    _wagner_audio_sample += samples;
 }
-#endif // !WAGN0_CUSTOM_FILL_AUDIO
+#endif // !WAGNER_CUSTOM_FILL_AUDIO
 
 // ============================================
 // USER FUNCTIONS (implemented by user)
 // ============================================
 
-// Defaults for config — overridden by `wagn0 build` via -DWAGN0_CFG_* flags
+// Defaults for config — overridden by `wagner build` via -DWAGNER_CFG_* flags
 
 void preload(void);
 void setup(void);
@@ -651,48 +651,48 @@ Canvas canvas_sub(Canvas src, int x, int y, int w, int h) {
     return c;
 }
 
-static Wagn0RenderState _wagn0_state_stack[32] = {
+static WagnerRenderState _wagner_state_stack[32] = {
     { {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f}, NULL, 0, 0, false, false, NULL, false, 0 }
 };
-static int _wagn0_state_sp = 0;
+static int _wagner_state_sp = 0;
 
-static inline Wagn0RenderState* _wagn0_current_state(void) {
-    return &_wagn0_state_stack[_wagn0_state_sp];
+static inline WagnerRenderState* _wagner_current_state(void) {
+    return &_wagner_state_stack[_wagner_state_sp];
 }
 
-static inline Wagn0Matrix* _wagn0_current_matrix(void) {
-    return &_wagn0_state_stack[_wagn0_state_sp].matrix;
+static inline WagnerMatrix* _wagner_current_matrix(void) {
+    return &_wagner_state_stack[_wagner_state_sp].matrix;
 }
 
 void push(void) {
-    if (_wagn0_state_sp < 31) {
-        _wagn0_state_stack[_wagn0_state_sp + 1] = _wagn0_state_stack[_wagn0_state_sp];
-        _wagn0_state_sp++;
+    if (_wagner_state_sp < 31) {
+        _wagner_state_stack[_wagner_state_sp + 1] = _wagner_state_stack[_wagner_state_sp];
+        _wagner_state_sp++;
     }
 }
 
 void pop(void) {
-    if (_wagn0_state_sp > 0) {
-        _wagn0_state_sp--;
+    if (_wagner_state_sp > 0) {
+        _wagner_state_sp--;
     }
 }
 
-static inline Canvas _wagn0_get_target(void) {
-    Canvas* t = _wagn0_current_state()->target;
+static inline Canvas _wagner_get_target(void) {
+    Canvas* t = _wagner_current_state()->target;
     return t ? *t : screen;
 }
 
-void render_target(Canvas* c) { _wagn0_current_state()->target = c; }
-void fill(pixel_t color) { _wagn0_current_state()->has_fill = true; _wagn0_current_state()->fill_color = color; }
-void no_fill(void) { _wagn0_current_state()->has_fill = false; }
-void stroke(pixel_t color) { _wagn0_current_state()->has_stroke = true; _wagn0_current_state()->stroke_color = color; }
-void no_stroke(void) { _wagn0_current_state()->has_stroke = false; }
-void texture(Canvas* img) { _wagn0_current_state()->texture = img; }
-void no_texture(void) { _wagn0_current_state()->texture = NULL; }
-void color_key(uint32_t key) { _wagn0_current_state()->has_color_key = true; _wagn0_current_state()->color_key = key; }
-void no_color_key(void) { _wagn0_current_state()->has_color_key = false; }
+void render_target(Canvas* c) { _wagner_current_state()->target = c; }
+void fill(pixel_t color) { _wagner_current_state()->has_fill = true; _wagner_current_state()->fill_color = color; }
+void no_fill(void) { _wagner_current_state()->has_fill = false; }
+void stroke(pixel_t color) { _wagner_current_state()->has_stroke = true; _wagner_current_state()->stroke_color = color; }
+void no_stroke(void) { _wagner_current_state()->has_stroke = false; }
+void texture(Canvas* img) { _wagner_current_state()->texture = img; }
+void no_texture(void) { _wagner_current_state()->texture = NULL; }
+void color_key(uint32_t key) { _wagner_current_state()->has_color_key = true; _wagner_current_state()->color_key = key; }
+void no_color_key(void) { _wagner_current_state()->has_color_key = false; }
 
-static inline void _wagn0_mat_mul(Wagn0Matrix* m, float a, float b, float c, float d, float e, float f) {
+static inline void _wagner_mat_mul(WagnerMatrix* m, float a, float b, float c, float d, float e, float f) {
     float nm_a = m->a * a + m->c * b;
     float nm_b = m->b * a + m->d * b;
     float nm_c = m->a * c + m->c * d;
@@ -703,33 +703,33 @@ static inline void _wagn0_mat_mul(Wagn0Matrix* m, float a, float b, float c, flo
 }
 
 void translate(float x, float y) {
-    _wagn0_mat_mul(_wagn0_current_matrix(), 1.0f, 0.0f, 0.0f, 1.0f, x, y);
+    _wagner_mat_mul(_wagner_current_matrix(), 1.0f, 0.0f, 0.0f, 1.0f, x, y);
 }
 
 void rotate(float angle) {
     float c = cos(angle);
     float s = sin(angle);
-    _wagn0_mat_mul(_wagn0_current_matrix(), c, s, -s, c, 0.0f, 0.0f);
+    _wagner_mat_mul(_wagner_current_matrix(), c, s, -s, c, 0.0f, 0.0f);
 }
 
 void scale(float sx, float sy) {
-    _wagn0_mat_mul(_wagn0_current_matrix(), sx, 0.0f, 0.0f, sy, 0.0f, 0.0f);
+    _wagner_mat_mul(_wagner_current_matrix(), sx, 0.0f, 0.0f, sy, 0.0f, 0.0f);
 }
 
 void apply_matrix(float a, float b, float c, float d, float e, float f) {
-    _wagn0_mat_mul(_wagn0_current_matrix(), a, b, c, d, e, f);
+    _wagner_mat_mul(_wagner_current_matrix(), a, b, c, d, e, f);
 }
 
-static inline void _wagn0_transform(float* x, float* y) {
-    Wagn0Matrix* m = _wagn0_current_matrix();
+static inline void _wagner_transform(float* x, float* y) {
+    WagnerMatrix* m = _wagner_current_matrix();
     float nx = m->a * (*x) + m->c * (*y) + m->e;
     float ny = m->b * (*x) + m->d * (*y) + m->f;
     *x = nx;
     *y = ny;
 }
 
-static inline int _wagn0_is_axis_aligned(void) {
-    Wagn0Matrix* m = _wagn0_current_matrix();
+static inline int _wagner_is_axis_aligned(void) {
+    WagnerMatrix* m = _wagner_current_matrix();
     return (wabs(m->b) < 0.001f && wabs(m->c) < 0.001f);
 }
 
@@ -763,7 +763,7 @@ static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t 
 }
 
 void clear(pixel_t color) {
-    Canvas c = _wagn0_get_target();
+    Canvas c = _wagner_get_target();
     size_t n = (size_t)c.width * c.height;
     if (c.bpp == 32) { uint32_t* p = (uint32_t*)c.pixels; while (n--) *p++ = (uint32_t)color; }
     else if (c.bpp == 24) {
@@ -776,7 +776,7 @@ void clear(pixel_t color) {
 }
 
 
-static void _wagn0_triangle_textured(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, 
+static void _wagner_triangle_textured(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, 
                                      float tx1, float ty1, float tx2, float ty2, float tx3, float ty3, 
                                      Canvas tex, int has_tint, pixel_t tint_color) {
     int lx = x1, hx = x1, ly = y1, hy = y1;
@@ -826,15 +826,15 @@ static void _wagn0_triangle_textured(Canvas c, int x1, int y1, int x2, int y2, i
 }
 
 void draw_quad(void) {
-    Canvas c = _wagn0_get_target();
+    Canvas c = _wagner_get_target();
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
-    Wagn0RenderState* state = _wagn0_current_state();
+    WagnerRenderState* state = _wagner_current_state();
     
     if (state->texture != NULL) {
         Canvas img = *state->texture;
-        if (_wagn0_is_axis_aligned()) {
-            float fx = 0.0f, fy = 0.0f; _wagn0_transform(&fx, &fy);
-            Wagn0Matrix* m = _wagn0_current_matrix();
+        if (_wagner_is_axis_aligned()) {
+            float fx = 0.0f, fy = 0.0f; _wagner_transform(&fx, &fy);
+            WagnerMatrix* m = _wagner_current_matrix();
             int nx = (int)fx, ny = (int)fy, nw = (int)m->a, nh = (int)m->d;
             if (nw < 0) { nx += nw; nw = -nw; }
             if (nh < 0) { ny += nh; nh = -nh; }
@@ -862,37 +862,37 @@ void draw_quad(void) {
                 }
             }
         } else {
-            float x1 = 0.0f, y1 = 0.0f; _wagn0_transform(&x1, &y1);
-            float x2 = 1.0f, y2 = 0.0f; _wagn0_transform(&x2, &y2);
-            float x3 = 1.0f, y3 = 1.0f; _wagn0_transform(&x3, &y3);
-            float x4 = 0.0f, y4 = 1.0f; _wagn0_transform(&x4, &y4);
+            float x1 = 0.0f, y1 = 0.0f; _wagner_transform(&x1, &y1);
+            float x2 = 1.0f, y2 = 0.0f; _wagner_transform(&x2, &y2);
+            float x3 = 1.0f, y3 = 1.0f; _wagner_transform(&x3, &y3);
+            float x4 = 0.0f, y4 = 1.0f; _wagner_transform(&x4, &y4);
             Olivec_Canvas tex_oc = { img.pixels, (size_t)img.width, (size_t)img.height, (size_t)img.stride, img.bpp };
-            _wagn0_triangle_textured(c, (int)x1, (int)y1, (int)x2, (int)y2, (int)x4, (int)y4, 0, 0, 1, 0, 0, 1, img, state->has_fill, state->fill_color);
-            _wagn0_triangle_textured(c, (int)x2, (int)y2, (int)x3, (int)y3, (int)x4, (int)y4, 1, 0, 1, 1, 0, 1, img, state->has_fill, state->fill_color);
+            _wagner_triangle_textured(c, (int)x1, (int)y1, (int)x2, (int)y2, (int)x4, (int)y4, 0, 0, 1, 0, 0, 1, img, state->has_fill, state->fill_color);
+            _wagner_triangle_textured(c, (int)x2, (int)y2, (int)x3, (int)y3, (int)x4, (int)y4, 1, 0, 1, 1, 0, 1, img, state->has_fill, state->fill_color);
         }
     } else if (state->has_fill) {
-        if (_wagn0_is_axis_aligned()) {
-            float fx = 0, fy = 0; _wagn0_transform(&fx, &fy);
-            Wagn0Matrix* m = _wagn0_current_matrix();
+        if (_wagner_is_axis_aligned()) {
+            float fx = 0, fy = 0; _wagner_transform(&fx, &fy);
+            WagnerMatrix* m = _wagner_current_matrix();
             int nx = (int)fx, ny = (int)fy, nw = (int)(1.0f * m->a), nh = (int)(1.0f * m->d);
             if (nw < 0) { nx += nw; nw = -nw; }
             if (nh < 0) { ny += nh; nh = -nh; }
             olivec_rect(oc, nx, ny, nw, nh, state->fill_color);
         } else {
-            float x1 = 0.0f, y1 = 0.0f; _wagn0_transform(&x1, &y1);
-            float x2 = 1.0f, y2 = 0.0f; _wagn0_transform(&x2, &y2);
-            float x3 = 1.0f, y3 = 1.0f; _wagn0_transform(&x3, &y3);
-            float x4 = 0.0f, y4 = 1.0f; _wagn0_transform(&x4, &y4);
+            float x1 = 0.0f, y1 = 0.0f; _wagner_transform(&x1, &y1);
+            float x2 = 1.0f, y2 = 0.0f; _wagner_transform(&x2, &y2);
+            float x3 = 1.0f, y3 = 1.0f; _wagner_transform(&x3, &y3);
+            float x4 = 0.0f, y4 = 1.0f; _wagner_transform(&x4, &y4);
             olivec_triangle(oc, (int)x1, (int)y1, (int)x2, (int)y2, (int)x4, (int)y4, state->fill_color);
             olivec_triangle(oc, (int)x2, (int)y2, (int)x3, (int)y3, (int)x4, (int)y4, state->fill_color);
         }
     }
     
     if (state->has_stroke) {
-        float x1 = 0.0f, y1 = 0.0f; _wagn0_transform(&x1, &y1);
-        float x2 = 1.0f, y2 = 0.0f; _wagn0_transform(&x2, &y2);
-        float x3 = 1.0f, y3 = 1.0f; _wagn0_transform(&x3, &y3);
-        float x4 = 0.0f, y4 = 1.0f; _wagn0_transform(&x4, &y4);
+        float x1 = 0.0f, y1 = 0.0f; _wagner_transform(&x1, &y1);
+        float x2 = 1.0f, y2 = 0.0f; _wagner_transform(&x2, &y2);
+        float x3 = 1.0f, y3 = 1.0f; _wagner_transform(&x3, &y3);
+        float x4 = 0.0f, y4 = 1.0f; _wagner_transform(&x4, &y4);
         olivec_line(oc, (int)x1, (int)y1, (int)x2, (int)y2, state->stroke_color);
         olivec_line(oc, (int)x2, (int)y2, (int)x3, (int)y3, state->stroke_color);
         olivec_line(oc, (int)x3, (int)y3, (int)x4, (int)y4, state->stroke_color);
@@ -901,16 +901,16 @@ void draw_quad(void) {
 }
 
 void draw_circle(void) {
-    Canvas c = _wagn0_get_target();
+    Canvas c = _wagner_get_target();
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
-    Wagn0RenderState* state = _wagn0_current_state();
+    WagnerRenderState* state = _wagner_current_state();
     
     if (state->texture != NULL) {
         Canvas img = *state->texture;
         Olivec_Canvas tex_oc = { img.pixels, (size_t)img.width, (size_t)img.height, (size_t)img.stride, img.bpp };
         
-        float cx_f = 0, cy_f = 0; _wagn0_transform(&cx_f, &cy_f);
-        float last_x = 1.0f, last_y = 0.0f; _wagn0_transform(&last_x, &last_y);
+        float cx_f = 0, cy_f = 0; _wagner_transform(&cx_f, &cy_f);
+        float last_x = 1.0f, last_y = 0.0f; _wagner_transform(&last_x, &last_y);
         
         float last_u = 1.0f, last_v = 0.5f;
         for (int i = 1; i <= 32; i++) {
@@ -918,16 +918,16 @@ void draw_circle(void) {
             float px = cos(ang), py = sin(ang);
             float pu = px * 0.5f + 0.5f;
             float pv = py * 0.5f + 0.5f;
-            _wagn0_transform(&px, &py);
+            _wagner_transform(&px, &py);
             
-            _wagn0_triangle_textured(c, (int)cx_f, (int)cy_f, (int)last_x, (int)last_y, (int)px, (int)py, 0.5f, 0.5f, last_u, last_v, pu, pv, img, state->has_fill, state->fill_color);
+            _wagner_triangle_textured(c, (int)cx_f, (int)cy_f, (int)last_x, (int)last_y, (int)px, (int)py, 0.5f, 0.5f, last_u, last_v, pu, pv, img, state->has_fill, state->fill_color);
             last_x = px; last_y = py;
             last_u = pu; last_v = pv;
         }
     } else if (state->has_fill) {
-        if (_wagn0_is_axis_aligned()) {
-            float fx = 0, fy = 0; _wagn0_transform(&fx, &fy);
-            Wagn0Matrix* m = _wagn0_current_matrix();
+        if (_wagner_is_axis_aligned()) {
+            float fx = 0, fy = 0; _wagner_transform(&fx, &fy);
+            WagnerMatrix* m = _wagner_current_matrix();
             float rx = wabs(m->a), ry = wabs(m->d);
             
             if (wabs(rx - ry) < 0.001f) {
@@ -946,26 +946,26 @@ void draw_circle(void) {
                 }
             }
         } else {
-            float cx_f = 0, cy_f = 0; _wagn0_transform(&cx_f, &cy_f);
-            float last_x = 1.0f, last_y = 0.0f; _wagn0_transform(&last_x, &last_y);
+            float cx_f = 0, cy_f = 0; _wagner_transform(&cx_f, &cy_f);
+            float last_x = 1.0f, last_y = 0.0f; _wagner_transform(&last_x, &last_y);
             for (int i = 1; i <= 32; i++) {
                 float ang = i * TWO_PI / 32.0f;
-                float px = cos(ang), py = sin(ang); _wagn0_transform(&px, &py);
+                float px = cos(ang), py = sin(ang); _wagner_transform(&px, &py);
                 olivec_triangle(oc, (int)cx_f, (int)cy_f, (int)last_x, (int)last_y, (int)px, (int)py, state->fill_color);
                 last_x = px; last_y = py;
             }
         }
     }
     if (state->has_stroke) {
-        if (_wagn0_is_axis_aligned()) {
-            float fx = 0, fy = 0; _wagn0_transform(&fx, &fy);
-            Wagn0Matrix* m = _wagn0_current_matrix();
+        if (_wagner_is_axis_aligned()) {
+            float fx = 0, fy = 0; _wagner_transform(&fx, &fy);
+            WagnerMatrix* m = _wagner_current_matrix();
             olivec_circle(oc, (int)fx, (int)fy, (int)wabs(m->a), state->stroke_color);
         } else {
-            float last_x = 1.0f, last_y = 0.0f; _wagn0_transform(&last_x, &last_y);
+            float last_x = 1.0f, last_y = 0.0f; _wagner_transform(&last_x, &last_y);
             for (int i = 1; i <= 32; i++) {
                 float ang = i * TWO_PI / 32.0f;
-                float px = cos(ang), py = sin(ang); _wagn0_transform(&px, &py);
+                float px = cos(ang), py = sin(ang); _wagner_transform(&px, &py);
                 olivec_line(oc, (int)last_x, (int)last_y, (int)px, (int)py, state->stroke_color);
                 last_x = px; last_y = py;
             }
@@ -974,12 +974,12 @@ void draw_circle(void) {
 }
 
 void draw_triangle_pts(float x1, float y1, float x2, float y2, float x3, float y3) {
-    Canvas c = _wagn0_get_target();
+    Canvas c = _wagner_get_target();
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
-    Wagn0RenderState* state = _wagn0_current_state();
-    float fx1 = x1, fy1 = y1; _wagn0_transform(&fx1, &fy1);
-    float fx2 = x2, fy2 = y2; _wagn0_transform(&fx2, &fy2);
-    float fx3 = x3, fy3 = y3; _wagn0_transform(&fx3, &fy3);
+    WagnerRenderState* state = _wagner_current_state();
+    float fx1 = x1, fy1 = y1; _wagner_transform(&fx1, &fy1);
+    float fx2 = x2, fy2 = y2; _wagner_transform(&fx2, &fy2);
+    float fx3 = x3, fy3 = y3; _wagner_transform(&fx3, &fy3);
     if (state->has_fill) olivec_triangle(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, (int)fx3, (int)fy3, state->fill_color);
     if (state->has_stroke) {
         olivec_line(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, state->stroke_color);
@@ -991,26 +991,26 @@ void draw_triangle_pts(float x1, float y1, float x2, float y2, float x3, float y
 void draw_triangle(void) { draw_triangle_pts(0, -1, 0.866025f, 0.5f, -0.866025f, 0.5f); }
 
 void draw_line(float x1, float y1, float x2, float y2) {
-    Canvas c = _wagn0_get_target();
+    Canvas c = _wagner_get_target();
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
-    Wagn0RenderState* state = _wagn0_current_state();
+    WagnerRenderState* state = _wagner_current_state();
     if (!state->has_stroke) return;
-    float fx1 = x1, fy1 = y1; _wagn0_transform(&fx1, &fy1);
-    float fx2 = x2, fy2 = y2; _wagn0_transform(&fx2, &fy2);
+    float fx1 = x1, fy1 = y1; _wagner_transform(&fx1, &fy1);
+    float fx2 = x2, fy2 = y2; _wagner_transform(&fx2, &fy2);
     olivec_line(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, state->stroke_color);
 }
 
 void draw_pixel(float x, float y) {
-    Canvas c = _wagn0_get_target();
+    Canvas c = _wagner_get_target();
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
-    Wagn0RenderState* state = _wagn0_current_state();
+    WagnerRenderState* state = _wagner_current_state();
     if (!state->has_fill) return;
-    float fx = x, fy = y; _wagn0_transform(&fx, &fy);
+    float fx = x, fy = y; _wagner_transform(&fx, &fy);
     olivec_set_pixel(oc, (int)fx, (int)fy, state->fill_color);
 }
 
 pixel_t pixel_at(int x, int y) {
-    Canvas c = _wagn0_get_target();
+    Canvas c = _wagner_get_target();
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     return (pixel_t)olivec_get_pixel(oc, x, y);
 }
@@ -1022,9 +1022,9 @@ void draw_triangle3uv(Canvas c,
 {
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     Olivec_Canvas tex = { texture.pixels, (size_t)texture.width, (size_t)texture.height, (size_t)texture.stride, texture.bpp };
-    float fx1 = x1, fy1 = y1; _wagn0_transform(&fx1, &fy1);
-    float fx2 = x2, fy2 = y2; _wagn0_transform(&fx2, &fy2);
-    float fx3 = x3, fy3 = y3; _wagn0_transform(&fx3, &fy3);
+    float fx1 = x1, fy1 = y1; _wagner_transform(&fx1, &fy1);
+    float fx2 = x2, fy2 = y2; _wagner_transform(&fx2, &fy2);
+    float fx3 = x3, fy3 = y3; _wagner_transform(&fx3, &fy3);
     olivec_triangle3uv(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, (int)fx3, (int)fy3,
         tx1, ty1, tx2, ty2, tx3, ty3,
         z1, z2, z3, tex);
@@ -1034,14 +1034,14 @@ void draw_triangle3uv(Canvas c,
 // TEXT FUNCTIONS IMPLEMENTATION
 // ============================================
 
-static int _wagn0_text_size = 1;
+static int _wagner_text_size = 1;
 
 void draw_text(const char* text_str) {
-    Canvas c = _wagn0_get_target();
-    Wagn0RenderState* state = _wagn0_current_state();
+    Canvas c = _wagner_get_target();
+    WagnerRenderState* state = _wagner_current_state();
     if (!state->has_fill) return;
     
-    float fx = 0, fy = 0; _wagn0_transform(&fx, &fy);
+    float fx = 0, fy = 0; _wagner_transform(&fx, &fy);
     char buf[256];
     const char* src = text_str;
     char* dst = buf;
@@ -1052,17 +1052,17 @@ void draw_text(const char* text_str) {
     }
     *dst = 0;
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
-    olivec_text(oc, buf, (int)fx, (int)fy, olivec_default_font, (size_t)_wagn0_text_size, (uint32_t)state->fill_color);
+    olivec_text(oc, buf, (int)fx, (int)fy, olivec_default_font, (size_t)_wagner_text_size, (uint32_t)state->fill_color);
 }
 
 void text_size(int size) {
-    _wagn0_text_size = size > 0 ? size : 1;
+    _wagner_text_size = size > 0 ? size : 1;
 }
 
 int text_width(const char* text_str) {
     int len = 0;
     while (text_str[len]) len++;
-    return len * (int)olivec_default_font.width * _wagn0_text_size;
+    return len * (int)olivec_default_font.width * _wagner_text_size;
 }
 
 // ============================================
@@ -1093,7 +1093,7 @@ static inline pixel_t lerp_color(pixel_t a, pixel_t b, float t) {
 }
 
 static inline int text_height(void) {
-    return (int)(olivec_default_font.height * (size_t)_wagn0_text_size);
+    return (int)(olivec_default_font.height * (size_t)_wagner_text_size);
 }
 
 
@@ -1102,8 +1102,8 @@ static inline int text_height(void) {
 // DECODER WRAPPERS FOR ASSET DATA
 // ============================================
 
-// Guard: build auto-defines WAGN0_NO_PNG_DECODE when no PNG assets.
-#ifndef WAGN0_NO_PNG_DECODE
+// Guard: build auto-defines WAGNER_NO_PNG_DECODE when no PNG assets.
+#ifndef WAGNER_NO_PNG_DECODE
 unsigned lodepng_decode32(unsigned char** out, unsigned* w, unsigned* h,
                          const unsigned char* in, size_t insize);
 
@@ -1119,7 +1119,7 @@ Canvas img_load(const uint8_t* data, size_t size) {
 // AUDIO DECODERS
 // ============================================
 
-#ifndef WAGN0_NO_AUDIO_DECODE
+#ifndef WAGNER_NO_AUDIO_DECODE
 #define DR_WAV_NO_STDIO
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav.h"
@@ -1140,8 +1140,8 @@ static inline void _monoize(const int16_t* stereo, int16_t* mono,
     }
 }
 
-Wagn0Audio wav_decode(const uint8_t* data, size_t size) {
-    Wagn0Audio a = {0};
+WagnerAudio wav_decode(const uint8_t* data, size_t size) {
+    WagnerAudio a = {0};
     drwav wav;
     if (!drwav_init_memory(&wav, data, size, NULL)) return a;
     uint64_t frames = wav.totalPCMFrameCount;
@@ -1159,8 +1159,8 @@ Wagn0Audio wav_decode(const uint8_t* data, size_t size) {
     return a;
 }
 
-Wagn0Audio mp3_decode(const uint8_t* data, size_t size) {
-    Wagn0Audio a = {0};
+WagnerAudio mp3_decode(const uint8_t* data, size_t size) {
+    WagnerAudio a = {0};
     drmp3 mp3;
     if (!drmp3_init_memory(&mp3, data, size, NULL)) return a;
     uint64_t frames = drmp3_get_pcm_frame_count(&mp3);
@@ -1178,8 +1178,8 @@ Wagn0Audio mp3_decode(const uint8_t* data, size_t size) {
     return a;
 }
 
-Wagn0Audio ogg_decode(const uint8_t* data, size_t size) {
-    Wagn0Audio a = {0};
+WagnerAudio ogg_decode(const uint8_t* data, size_t size) {
+    WagnerAudio a = {0};
     int ch, rate;
     short* output;
     int len = stb_vorbis_decode_memory(data, (int)size, &ch, &rate, &output);
@@ -1207,86 +1207,86 @@ Wagn0Audio ogg_decode(const uint8_t* data, size_t size) {
 // ============================================
 
 typedef enum {
-    WAGN0_ASSET_IMAGE,
-    WAGN0_ASSET_AUDIO,
-    WAGN0_ASSET_DATA
-} Wagn0AssetType;
+    WAGNER_ASSET_IMAGE,
+    WAGNER_ASSET_AUDIO,
+    WAGNER_ASSET_DATA
+} WagnerAssetType;
 
 typedef struct {
     char path[128];
-    Wagn0AssetType type;
+    WagnerAssetType type;
     void* target;
-} Wagn0AssetRequest;
+} WagnerAssetRequest;
 
-#define WAGN0_MAX_ASSET_REQUESTS 64
-static Wagn0AssetRequest _wagn0_asset_queue[WAGN0_MAX_ASSET_REQUESTS];
-static int _wagn0_queue_head = 0;
-static int _wagn0_queue_tail = 0;
+#define WAGNER_MAX_ASSET_REQUESTS 64
+static WagnerAssetRequest _wagner_asset_queue[WAGNER_MAX_ASSET_REQUESTS];
+static int _wagner_queue_head = 0;
+static int _wagner_queue_tail = 0;
 
-static int _wagn0_preloading_state = 0;
+static int _wagner_preloading_state = 0;
 // 0 = Initial (run preload, then move to 1)
 // 1 = Loading (process queue until empty, then move to 2)
 // 2 = Setup (run setup, then move to 3)
 // 3 = Running
 
-static int _wagn0_io_step = 0; 
+static int _wagner_io_step = 0; 
 // 0 = Idle / Dequeue next
 // 1 = Waiting for size
 // 2 = Waiting for data
-static uint8_t* _wagn0_io_buffer = NULL;
+static uint8_t* _wagner_io_buffer = NULL;
 
 void load_image(Canvas* out, const char* path) {
-    if (_wagn0_queue_tail >= WAGN0_MAX_ASSET_REQUESTS) return;
-    Wagn0AssetRequest* req = &_wagn0_asset_queue[_wagn0_queue_tail++];
+    if (_wagner_queue_tail >= WAGNER_MAX_ASSET_REQUESTS) return;
+    WagnerAssetRequest* req = &_wagner_asset_queue[_wagner_queue_tail++];
     int i = 0;
     while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
     req->path[i] = '\0';
-    req->type = WAGN0_ASSET_IMAGE;
+    req->type = WAGNER_ASSET_IMAGE;
     req->target = out;
 }
 
-void load_audio(Wagn0Audio* out, const char* path) {
-    if (_wagn0_queue_tail >= WAGN0_MAX_ASSET_REQUESTS) return;
-    Wagn0AssetRequest* req = &_wagn0_asset_queue[_wagn0_queue_tail++];
+void load_audio(WagnerAudio* out, const char* path) {
+    if (_wagner_queue_tail >= WAGNER_MAX_ASSET_REQUESTS) return;
+    WagnerAssetRequest* req = &_wagner_asset_queue[_wagner_queue_tail++];
     int i = 0;
     while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
     req->path[i] = '\0';
-    req->type = WAGN0_ASSET_AUDIO;
+    req->type = WAGNER_ASSET_AUDIO;
     req->target = out;
 }
 
 typedef struct {
     void* data;
     uint32_t size;
-} Wagn0Data;
+} WagnerData;
 
-void load_data(Wagn0Data* out, const char* path) {
-    if (_wagn0_queue_tail >= WAGN0_MAX_ASSET_REQUESTS) return;
-    Wagn0AssetRequest* req = &_wagn0_asset_queue[_wagn0_queue_tail++];
+void load_data(WagnerData* out, const char* path) {
+    if (_wagner_queue_tail >= WAGNER_MAX_ASSET_REQUESTS) return;
+    WagnerAssetRequest* req = &_wagner_asset_queue[_wagner_queue_tail++];
     int i = 0;
     while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
     req->path[i] = '\0';
-    req->type = WAGN0_ASSET_DATA;
+    req->type = WAGNER_ASSET_DATA;
     req->target = out;
 }
 
-static char _wagn0_save_path[128];
+static char _wagner_save_path[128];
 bool file_save(const char* path, const void* data, uint32_t size) {
-    if (_wagn0_rom.state.io_save) return false; // Busy
+    if (_wagner_rom.state.io_save) return false; // Busy
     int i = 0;
-    while(path[i] && i < 127) { _wagn0_save_path[i] = path[i]; i++; }
-    _wagn0_save_path[i] = '\0';
-    _wagn0_rom.state.io_save_buffer = (uint32_t)(uintptr_t)data;
-    _wagn0_rom.state.io_save_size = size;
-    _wagn0_rom.state.io_save = (uint32_t)(uintptr_t)_wagn0_save_path;
+    while(path[i] && i < 127) { _wagner_save_path[i] = path[i]; i++; }
+    _wagner_save_path[i] = '\0';
+    _wagner_rom.state.io_save_buffer = (uint32_t)(uintptr_t)data;
+    _wagner_rom.state.io_save_size = size;
+    _wagner_rom.state.io_save = (uint32_t)(uintptr_t)_wagner_save_path;
     return true;
 }
 
 bool file_is_saving(void) {
-    return _wagn0_rom.state.io_save != 0;
+    return _wagner_rom.state.io_save != 0;
 }
 
-static void _wagn0_copy_str(uint8_t* dst, const char* src) {
+static void _wagner_copy_str(uint8_t* dst, const char* src) {
     int i = 0;
     while(src[i] && i < 255) { dst[i] = src[i]; i++; }
     dst[i] = '\0';
@@ -1296,154 +1296,154 @@ int wupdate() {
     static int init = 0;
     if (!init) {
         init = 1;
-        wagn0.width  = 320; wagn0.height = 240;
-        wagn0.bpp    = 16;  wagn0.scale  = 4;
-        wagn0.frame_count = 0; wagn0.fps = 0;
-        wagn0.delta_time = 0.016f;
-        wagn0.mouse  = vec2(0, 0); wagn0.pmouse = vec2(0, 0);
-        wagn0.mouse_pressed = false; wagn0.mouse_released = false;
-        wagn0.mouse_down = false;
+        wagner.width  = 320; wagner.height = 240;
+        wagner.bpp    = 16;  wagner.scale  = 4;
+        wagner.frame_count = 0; wagner.fps = 0;
+        wagner.delta_time = 0.016f;
+        wagner.mouse  = vec2(0, 0); wagner.pmouse = vec2(0, 0);
+        wagner.mouse_pressed = false; wagner.mouse_released = false;
+        wagner.mouse_down = false;
         
-        _wagn0_rom.state.vram_offset = sizeof(WagnosticState);
-        _wagn0_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagn0_rom.vram);
-        wagn0.canvas_pixels = w_vram;
+        _wagner_rom.state.vram_offset = sizeof(WagnosticState);
+        _wagner_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagner_rom.vram);
+        wagner.canvas_pixels = w_vram;
         screen.pixels = w_vram; screen.width = 320; screen.height = 240;
         screen.stride = 320; screen.bpp = 16;
-        w_setup(&_wagn0_rom.state, WAGN0_TITLE, WAGN0_CFG_W, WAGN0_CFG_H, WAGN0_CFG_BPP, WAGN0_CFG_SCALE);
-        wagn0.width = w_width; wagn0.height = w_height;
-        wagn0.bpp = w_bpp; wagn0.scale = w_scale;
+        w_setup(&_wagner_rom.state, WAGNER_TITLE, WAGNER_CFG_W, WAGNER_CFG_H, WAGNER_CFG_BPP, WAGNER_CFG_SCALE);
+        wagner.width = w_width; wagner.height = w_height;
+        wagner.bpp = w_bpp; wagner.scale = w_scale;
         screen.width = w_width; screen.height = w_height;
         screen.stride = w_width; screen.bpp = (uint8_t)w_bpp;
     }
 
     // Input processing
-    wagn0.pmouse = wagn0.mouse;
-    wagn0.mouse = vec2(w_mouse_x, w_mouse_y);
+    wagner.pmouse = wagner.mouse;
+    wagner.mouse = vec2(w_mouse_x, w_mouse_y);
     bool cur = (w_mouse_buttons & 1) != 0;
-    wagn0.mouse_pressed = cur && !wagn0.mouse_down;
-    wagn0.mouse_released = !cur && wagn0.mouse_down;
-    wagn0.mouse_down = cur;
-    wagn0.mouse_button = cur ? 1 : 0;
+    wagner.mouse_pressed = cur && !wagner.mouse_down;
+    wagner.mouse_released = !cur && wagner.mouse_down;
+    wagner.mouse_down = cur;
+    wagner.mouse_button = cur ? 1 : 0;
     for (int i = 0; i < 256; i++) {
         bool k = w_keys[i] != 0;
-        wagn0.keys_pressed[i] = k && !wagn0.keys[i];
-        wagn0.keys_released[i] = !k && wagn0.keys[i];
-        wagn0.keys[i] = k;
+        wagner.keys_pressed[i] = k && !wagner.keys[i];
+        wagner.keys_released[i] = !k && wagner.keys[i];
+        wagner.keys[i] = k;
     }
 
-    if (_wagn0_preloading_state == 0) {
+    if (_wagner_preloading_state == 0) {
         if (preload) preload();
-        _wagn0_preloading_state = 1;
-        _wagn0_io_step = 0;
+        _wagner_preloading_state = 1;
+        _wagner_io_step = 0;
     }
 
-    if (_wagn0_preloading_state == 1) {
-        if (_wagn0_queue_head >= _wagn0_queue_tail) {
-            _wagn0_preloading_state = 2; // Done loading
+    if (_wagner_preloading_state == 1) {
+        if (_wagner_queue_head >= _wagner_queue_tail) {
+            _wagner_preloading_state = 2; // Done loading
         } else {
-            Wagn0AssetRequest* req = &_wagn0_asset_queue[_wagn0_queue_head];
+            WagnerAssetRequest* req = &_wagner_asset_queue[_wagner_queue_head];
             
-            if (_wagn0_io_step == 0) {
+            if (_wagner_io_step == 0) {
                 // Step 0: Ask for file size
-                _wagn0_rom.state.io_load = (uint32_t)(uintptr_t)_wagn0_rom.state.title; // use title temporarily or allocated buffer
+                _wagner_rom.state.io_load = (uint32_t)(uintptr_t)_wagner_rom.state.title; // use title temporarily or allocated buffer
                 // Actually, let's use a 256 byte buffer inside state or just a static buffer
                 static uint8_t path_buf[256];
-                _wagn0_copy_str(path_buf, req->path);
-                _wagn0_rom.state.io_load = (uint32_t)(uintptr_t)path_buf;
-                _wagn0_rom.state.io_load_buffer = 0; // ask for size
-                _wagn0_rom.state.io_load_size = 0;
-                _wagn0_io_step = 1;
-                return (int)&_wagn0_rom.state;
+                _wagner_copy_str(path_buf, req->path);
+                _wagner_rom.state.io_load = (uint32_t)(uintptr_t)path_buf;
+                _wagner_rom.state.io_load_buffer = 0; // ask for size
+                _wagner_rom.state.io_load_size = 0;
+                _wagner_io_step = 1;
+                return (int)&_wagner_rom.state;
             } 
-            else if (_wagn0_io_step == 1) {
+            else if (_wagner_io_step == 1) {
                 // Step 1: Wait for size to be returned
-                if (_wagn0_rom.state.io_load != 0) return (int)&_wagn0_rom.state; // Host hasn't cleared it yet
+                if (_wagner_rom.state.io_load != 0) return (int)&_wagner_rom.state; // Host hasn't cleared it yet
                 
-                uint32_t size = _wagn0_rom.state.io_load_size;
+                uint32_t size = _wagner_rom.state.io_load_size;
                 if (size == 0) {
                     // File not found or empty
-                    _wagn0_queue_head++;
-                    _wagn0_io_step = 0;
-                    return (int)&_wagn0_rom.state;
+                    _wagner_queue_head++;
+                    _wagner_io_step = 0;
+                    return (int)&_wagner_rom.state;
                 }
                 
                 // Allocate buffer
-                _wagn0_io_buffer = (uint8_t*)malloc(size);
-                if (!_wagn0_io_buffer) {
-                    _wagn0_queue_head++;
-                    _wagn0_io_step = 0;
-                    return (int)&_wagn0_rom.state;
+                _wagner_io_buffer = (uint8_t*)malloc(size);
+                if (!_wagner_io_buffer) {
+                    _wagner_queue_head++;
+                    _wagner_io_step = 0;
+                    return (int)&_wagner_rom.state;
                 }
                 
                 // Request actual data
                 static uint8_t path_buf[256];
-                _wagn0_copy_str(path_buf, req->path);
-                _wagn0_rom.state.io_load = (uint32_t)(uintptr_t)path_buf;
-                _wagn0_rom.state.io_load_buffer = (uint32_t)(uintptr_t)_wagn0_io_buffer;
-                _wagn0_io_step = 2;
-                return (int)&_wagn0_rom.state;
+                _wagner_copy_str(path_buf, req->path);
+                _wagner_rom.state.io_load = (uint32_t)(uintptr_t)path_buf;
+                _wagner_rom.state.io_load_buffer = (uint32_t)(uintptr_t)_wagner_io_buffer;
+                _wagner_io_step = 2;
+                return (int)&_wagner_rom.state;
             }
-            else if (_wagn0_io_step == 2) {
+            else if (_wagner_io_step == 2) {
                 // Step 2: Wait for data
-                if (_wagn0_rom.state.io_load != 0) return (int)&_wagn0_rom.state; // Not ready
+                if (_wagner_rom.state.io_load != 0) return (int)&_wagner_rom.state; // Not ready
                 
-                uint32_t size = _wagn0_rom.state.io_load_size;
+                uint32_t size = _wagner_rom.state.io_load_size;
                 
                 // Decode data
-                if (req->type == WAGN0_ASSET_IMAGE) {
-#ifndef WAGN0_NO_PNG_DECODE
-                    Canvas img = img_load(_wagn0_io_buffer, size);
+                if (req->type == WAGNER_ASSET_IMAGE) {
+#ifndef WAGNER_NO_PNG_DECODE
+                    Canvas img = img_load(_wagner_io_buffer, size);
                     if (req->target) *((Canvas*)req->target) = img;
 #endif
-                } else if (req->type == WAGN0_ASSET_AUDIO) {
-#ifndef WAGN0_NO_AUDIO_DECODE
+                } else if (req->type == WAGNER_ASSET_AUDIO) {
+#ifndef WAGNER_NO_AUDIO_DECODE
                     // Basic sniffer to decide between wav/mp3/ogg based on path extension
                     int len = 0; while(req->path[len]) len++;
                     if (len >= 4) {
                         const char* ext = &req->path[len-4];
                         if (ext[1]=='w' && ext[2]=='a' && ext[3]=='v') {
-                            Wagn0Audio a = wav_decode(_wagn0_io_buffer, size);
-                            if (req->target) *((Wagn0Audio*)req->target) = a;
+                            WagnerAudio a = wav_decode(_wagner_io_buffer, size);
+                            if (req->target) *((WagnerAudio*)req->target) = a;
                         }
                         else if (ext[1]=='m' && ext[2]=='p' && ext[3]=='3') {
-                            Wagn0Audio a = mp3_decode(_wagn0_io_buffer, size);
-                            if (req->target) *((Wagn0Audio*)req->target) = a;
+                            WagnerAudio a = mp3_decode(_wagner_io_buffer, size);
+                            if (req->target) *((WagnerAudio*)req->target) = a;
                         }
                         else if (ext[1]=='o' && ext[2]=='g' && ext[3]=='g') {
-                            Wagn0Audio a = ogg_decode(_wagn0_io_buffer, size);
-                            if (req->target) *((Wagn0Audio*)req->target) = a;
+                            WagnerAudio a = ogg_decode(_wagner_io_buffer, size);
+                            if (req->target) *((WagnerAudio*)req->target) = a;
                         }
                     }
 #endif
-                } else if (req->type == WAGN0_ASSET_DATA) {
+                } else if (req->type == WAGNER_ASSET_DATA) {
                     if (req->target) {
-                        Wagn0Data* d = (Wagn0Data*)req->target;
-                        d->data = _wagn0_io_buffer;
+                        WagnerData* d = (WagnerData*)req->target;
+                        d->data = _wagner_io_buffer;
                         d->size = size;
                     }
-                    _wagn0_io_buffer = NULL; // Do not free it! User owns it.
+                    _wagner_io_buffer = NULL; // Do not free it! User owns it.
                 }
                 
-                if (_wagn0_io_buffer) free(_wagn0_io_buffer);
-                _wagn0_io_buffer = NULL;
+                if (_wagner_io_buffer) free(_wagner_io_buffer);
+                _wagner_io_buffer = NULL;
                 
-                _wagn0_queue_head++;
-                _wagn0_io_step = 0;
-                return (int)&_wagn0_rom.state;
+                _wagner_queue_head++;
+                _wagner_io_step = 0;
+                return (int)&_wagner_rom.state;
             }
         }
     }
 
-    if (_wagn0_preloading_state == 2) {
+    if (_wagner_preloading_state == 2) {
         if (setup) setup();
-        _wagn0_preloading_state = 3;
+        _wagner_preloading_state = 3;
     }
 
     // Regular draw loop
     static uint32_t last_ticks = 0;
     uint32_t now = w_ticks;
-    if (last_ticks > 0) wagn0.delta_time = (now - last_ticks) / 1000.0f;
-    last_ticks = now; wagn0.frame_count++;
+    if (last_ticks > 0) wagner.delta_time = (now - last_ticks) / 1000.0f;
+    last_ticks = now; wagner.frame_count++;
     
     draw();
     fill_audio();
@@ -1452,19 +1452,19 @@ int wupdate() {
     if (_fps_timer == 0) _fps_timer = now;
     uint32_t _fps_elapsed = now - _fps_timer;
     if (_fps_elapsed >= 1000) {
-        wagn0.fps = (wagn0.frame_count * 1000) / (_fps_elapsed ? _fps_elapsed : 1);
-        wagn0.frame_count = 0;
+        wagner.fps = (wagner.frame_count * 1000) / (_fps_elapsed ? _fps_elapsed : 1);
+        wagner.frame_count = 0;
         _fps_timer = now;
     }
     
-    if (wagn0.mouse_pressed && mouse_pressed) mouse_pressed();
-    if (wagn0.mouse_released && mouse_released) mouse_released();
+    if (wagner.mouse_pressed && mouse_pressed) mouse_pressed();
+    if (wagner.mouse_released && mouse_released) mouse_released();
     for (int i = 0; i < 256; i++) {
-        if (wagn0.keys_pressed[i] && key_pressed) key_pressed(i);
-        if (wagn0.keys_released[i] && key_released) key_released(i);
+        if (wagner.keys_pressed[i] && key_pressed) key_pressed(i);
+        if (wagner.keys_released[i] && key_released) key_released(i);
     }
-    w_redraw(&_wagn0_rom.state);
-    return (int)&_wagn0_rom.state;
+    w_redraw(&_wagner_rom.state);
+    return (int)&_wagner_rom.state;
 }
 
-#endif // WAGN0_H
+#endif // WAGNER_H

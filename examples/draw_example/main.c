@@ -1,4 +1,4 @@
-#include "wagn0.h"
+#include "wagner.h"
 
 static Canvas sheet;
 static int sprite_w = 24, sprite_h = 24;
@@ -94,7 +94,7 @@ void draw() {
     draw_text("FPS:");
     pop();
     
-    draw_number(wagn0.fps, 40, 10, WHITE);
+    draw_number(wagner.fps, 40, 10, WHITE);
     
     push();
     translate(90, 10);

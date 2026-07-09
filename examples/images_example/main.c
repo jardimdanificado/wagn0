@@ -1,4 +1,4 @@
-#include "wagn0.h"
+#include "wagner.h"
 
 static Canvas img;
 static int pos_x = 100, pos_y = 70;
@@ -43,15 +43,15 @@ static void draw_str(const char* str, int x, int y, pixel_t color) {
 
 void draw() {
     // Input
-    if (w_gamepad_buttons & W_BTN_LEFT || wagn0.keys[80])  pos_x -= 2;
-    if (w_gamepad_buttons & W_BTN_RIGHT || wagn0.keys[79]) pos_x += 2;
-    if (w_gamepad_buttons & W_BTN_UP || wagn0.keys[82])    pos_y -= 2;
-    if (w_gamepad_buttons & W_BTN_DOWN || wagn0.keys[81])  pos_y += 2;
-    if (w_gamepad_buttons & W_BTN_L1 || wagn0.keys[29])    scale_w -= 2; // z
-    if (w_gamepad_buttons & W_BTN_R1 || wagn0.keys[27])    scale_w += 2; // x
+    if (w_gamepad_buttons & W_BTN_LEFT || wagner.keys[80])  pos_x -= 2;
+    if (w_gamepad_buttons & W_BTN_RIGHT || wagner.keys[79]) pos_x += 2;
+    if (w_gamepad_buttons & W_BTN_UP || wagner.keys[82])    pos_y -= 2;
+    if (w_gamepad_buttons & W_BTN_DOWN || wagner.keys[81])  pos_y += 2;
+    if (w_gamepad_buttons & W_BTN_L1 || wagner.keys[29])    scale_w -= 2; // z
+    if (w_gamepad_buttons & W_BTN_R1 || wagner.keys[27])    scale_w += 2; // x
     if (w_gamepad_buttons & W_BTN_L2)    scale_h -= 2;
     if (w_gamepad_buttons & W_BTN_R2)    scale_h += 2;
-    if (w_gamepad_buttons & W_BTN_A || wagn0.keys[4]) { 
+    if (w_gamepad_buttons & W_BTN_A || wagner.keys[4]) { 
         if (img.pixels) { scale_w = img.width; scale_h = img.height; }
     }
 

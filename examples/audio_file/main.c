@@ -1,6 +1,6 @@
-#include "wagn0.h"
+#include "wagner.h"
 
-static Wagn0Audio my_audio = {0};
+static WagnerAudio my_audio = {0};
 
 void preload() {
     load_audio(&my_audio, "test.wav");

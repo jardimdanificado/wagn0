@@ -1,9 +1,9 @@
-#include "wagn0.h"
+#include "wagner.h"
 
 static int active_count(void) {
     int n = 0;
-    for (int i = 0; i < WAGN0_MAX_TONES; i++) {
-        if (_wagn0_tones[i].active) n++;
+    for (int i = 0; i < WAGNER_MAX_TONES; i++) {
+        if (_wagner_tones[i].active) n++;
     }
     return n;
 }
@@ -39,7 +39,7 @@ void draw() {
         int kx = 35 + i * 50;
         int ky = 160;
         // Check if key is pressed for highlight
-        int is_pressed = wagn0.keys[30 + i]; // 1=30, 2=31, etc.
+        int is_pressed = wagner.keys[30 + i]; // 1=30, 2=31, etc.
         
         pixel_t fill = is_pressed ? rgb(100, 200, 100) : rgb(40, 40, 50);
         pixel_t outline = is_pressed ? WHITE : GRAY;

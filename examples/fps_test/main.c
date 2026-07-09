@@ -1,4 +1,4 @@
-#include "wagn0.h"
+#include "wagner.h"
 
 #define FPS_COUNT 4
 static const uint32_t fps_values[FPS_COUNT] = { 60, 45, 30, 15 };
@@ -91,12 +91,12 @@ void draw() {
     draw_str("Actual:", 20, 130, GRAY);
     
     // Color based on performance
-    float ratio = (float)wagn0.fps / (float)fps_values[fps_index];
+    float ratio = (float)wagner.fps / (float)fps_values[fps_index];
     if (ratio > 1.0f) ratio = 1.0f;
     pixel_t fps_color = lerp_color(RED, GREEN, ratio);
-    draw_number(wagn0.fps, 90, 130, fps_color);
+    draw_number(wagner.fps, 90, 130, fps_color);
     
     draw_str("Delta:", 20, 170, GRAY);
-    draw_number((int)(wagn0.delta_time * 1000.0f), 90, 170, YELLOW);
+    draw_number((int)(wagner.delta_time * 1000.0f), 90, 170, YELLOW);
     draw_str("ms", 115, 170, YELLOW);
 }

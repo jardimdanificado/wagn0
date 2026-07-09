@@ -1,6 +1,6 @@
 CLANG ?= clang
-WAGN0_DIR ?= ..
-INCLUDE_DIR ?= -I$(WAGN0_DIR)/include
+WAGNER_DIR ?= ..
+INCLUDE_DIR ?= -I$(WAGNER_DIR)/include
 
 CFLAGS = --target=wasm32 -nostdlib -fno-delete-null-pointer-checks -O2 -w $(INCLUDE_DIR)
 LDFLAGS = -Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined

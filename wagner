@@ -2,11 +2,11 @@
 # wagno - CLI tool for WagnO game development
 set -euo pipefail
 
-WAGNO_DIR="$(cd "$(dirname "$0")" && pwd)"
-TEMPLATES="$WAGNO_DIR/templates"
-INCLUDE_DIR="-I${WAGNO_DIR}/include"
-HOST_BINARY="${WAGNO_DIR}/wagnostic"
-RUNNER="${WAGN0_RUNNER:-}"
+WAGNER_DIR="$(cd "$(dirname "$0")" && pwd)"
+TEMPLATES="$WAGNER_DIR/templates"
+INCLUDE_DIR="-I${WAGNER_DIR}/include"
+HOST_BINARY="${WAGNER_DIR}/wagnostic"
+RUNNER="${WAGNER_RUNNER:-}"
 
 RED='\033[31m'
 GREEN='\033[32m'
@@ -19,14 +19,14 @@ err()   { printf "  ${RED}!${RESET} %s\n" "$*" >&2; }
 
 usage() {
     cat <<'EOF'
-wagn0 - CLI tool for WagnO game development
+wagner - CLI tool for WagnO game development
 
 Usage:
-    wagn0 new <name>         Create a new project
-    wagn0 init               Initialize current directory
-    wagn0 build [--release]  Build the WASM ROM
-    wagn0 run [<file>]       Run a WASM ROM
-    wagn0 dev                Watch, rebuild, and run on changes
+    wagner new <name>         Create a new project
+    wagner init               Initialize current directory
+    wagner build [--release]  Build the WASM ROM
+    wagner run [<file>]       Run a WASM ROM
+    wagner dev                Watch, rebuild, and run on changes
 EOF
 }
 
@@ -34,15 +34,15 @@ EOF
 
 load_config() {
     NAME=""; WIDTH=320; HEIGHT=240; SCALE=4; BPP=16; MEMORY=8388608; SRC=""
-    [ -f wagn0.json ] || return 0
+    [ -f wagner.json ] || return 0
     local tmp
-    tmp=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' wagn0.json 2>/dev/null) && NAME="${tmp#*:}" && NAME="${NAME# }" && NAME="${NAME#\"}" && NAME="${NAME%\"}"
-    tmp=$(grep -o '"width"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && WIDTH="${tmp#*:}" && WIDTH="${WIDTH# }"
-    tmp=$(grep -o '"height"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && HEIGHT="${tmp#*:}" && HEIGHT="${HEIGHT# }"
-    tmp=$(grep -o '"scale"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && SCALE="${tmp#*:}" && SCALE="${SCALE# }"
-    tmp=$(grep -o '"bpp"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && BPP="${tmp#*:}" && BPP="${BPP# }"
-    tmp=$(grep -o '"memory"[[:space:]]*:[[:space:]]*[0-9]*' wagn0.json 2>/dev/null) && MEMORY="${tmp#*:}" && MEMORY="${MEMORY# }"
-    SRC=$(grep -oP '"[^"]*\.c"' wagn0.json 2>/dev/null | sed 's/"//g' | tr '\n' ' ' || true)
+    tmp=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' wagner.json 2>/dev/null) && NAME="${tmp#*:}" && NAME="${NAME# }" && NAME="${NAME#\"}" && NAME="${NAME%\"}"
+    tmp=$(grep -o '"width"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && WIDTH="${tmp#*:}" && WIDTH="${WIDTH# }"
+    tmp=$(grep -o '"height"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && HEIGHT="${tmp#*:}" && HEIGHT="${HEIGHT# }"
+    tmp=$(grep -o '"scale"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && SCALE="${tmp#*:}" && SCALE="${SCALE# }"
+    tmp=$(grep -o '"bpp"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && BPP="${tmp#*:}" && BPP="${BPP# }"
+    tmp=$(grep -o '"memory"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && MEMORY="${tmp#*:}" && MEMORY="${MEMORY# }"
+    SRC=$(grep -oP '"[^"]*\.c"' wagner.json 2>/dev/null | sed 's/"//g' | tr '\n' ' ' || true)
     [ -n "$NAME" ] || NAME="$(basename "$(pwd)")"
 }
 
@@ -79,7 +79,7 @@ build_wasm() {
     local opt="-O2"
 
     load_config
-    [ -d "${WAGNO_DIR}/include" ] || { err "Include directory not found"; return 1; }
+    [ -d "${WAGNER_DIR}/include" ] || { err "Include directory not found"; return 1; }
 
     local target="${NAME}.wasm"
     local src_files
@@ -102,27 +102,27 @@ build_wasm() {
 
     # Detect which decoders are needed and add their source + include paths
     local decoder_c_files=""
-    local decoder_inc="-I${WAGNO_DIR}/lib/include"
-    local shim_c="${WAGNO_DIR}/lib/shim/libc_shim.c"
+    local decoder_inc="-I${WAGNER_DIR}/lib/include"
+    local shim_c="${WAGNER_DIR}/lib/shim/libc_shim.c"
     if find assets -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.bmp' 2>/dev/null | grep -q .; then
-        decoder_c_files="$decoder_c_files ${WAGNO_DIR}/lib/decoders/lodepng.c"
-        decoder_inc="$decoder_inc -I${WAGNO_DIR}/lib/decoders \
+        decoder_c_files="$decoder_c_files ${WAGNER_DIR}/lib/decoders/lodepng.c"
+        decoder_inc="$decoder_inc -I${WAGNER_DIR}/lib/decoders \
             -DLODEPNG_NO_COMPILE_DISK -DLODEPNG_NO_COMPILE_ENCODER \
             -DLODEPNG_NO_COMPILE_ANCILLARY_CHUNKS -DLODEPNG_NO_COMPILE_ERROR_TEXT"
     else
         # No PNG assets: disable png_decode to avoid lodepng_decode32 import
-        decoder_inc="$decoder_inc -DWAGN0_NO_PNG_DECODE"
+        decoder_inc="$decoder_inc -DWAGNER_NO_PNG_DECODE"
     fi
 
     if find assets -name '*.wav' -o -name '*.mp3' -o -name '*.ogg' 2>/dev/null | grep -q .; then
-        decoder_inc="$decoder_inc -I${WAGNO_DIR}/lib/decoders \
+        decoder_inc="$decoder_inc -I${WAGNER_DIR}/lib/decoders \
                      -DSTB_VORBIS_NO_STDIO"
-        decoder_c_files="$decoder_c_files ${WAGNO_DIR}/lib/decoders/stb_vorbis.c"
+        decoder_c_files="$decoder_c_files ${WAGNER_DIR}/lib/decoders/stb_vorbis.c"
     fi
     if find assets -name '*.wav' -o -name '*.mp3' -o -name '*.ogg' 2>/dev/null | grep -q .; then
         :  # has audio — don't disable decoders
     else
-        decoder_inc="$decoder_inc -DWAGN0_NO_AUDIO_DECODE"
+        decoder_inc="$decoder_inc -DWAGNER_NO_AUDIO_DECODE"
     fi
     # Always link the shim. It provides strlen (so clang's
     # text_width optimization doesn't emit env.strlen), memcpy/
@@ -131,7 +131,7 @@ build_wasm() {
     # cost is small (~3KB) and keeps the WASM zero-import.
     decoder_c_files="$decoder_c_files $shim_c"
 
-    local config_flags="-DWAGN0_TITLE=\"$NAME\" -DWAGN0_CFG_W=$WIDTH -DWAGN0_CFG_H=$HEIGHT -DWAGN0_CFG_BPP=$BPP -DWAGN0_CFG_SCALE=$SCALE"
+    local config_flags="-DWAGNER_TITLE=\"$NAME\" -DWAGNER_CFG_W=$WIDTH -DWAGNER_CFG_H=$HEIGHT -DWAGNER_CFG_BPP=$BPP -DWAGNER_CFG_SCALE=$SCALE"
 
     if ! "$clang" --target=wasm32 -nostdlib -fno-delete-null-pointer-checks \
         $opt -w $INCLUDE_DIR -I. $decoder_inc $config_flags \
@@ -196,9 +196,9 @@ cmd_new() {
     [ -d "$name" ] && { err "'$name' already exists"; return 1; }
     mkdir -p "$name/assets"
     cp "$TEMPLATES/main.c" "$TEMPLATES/Makefile" "$name/"
-    sed "s|\"name\": \"\"|\"name\": \"$name\"|" "$TEMPLATES/wagn0.json" > "$name/wagn0.json"
+    sed "s|\"name\": \"\"|\"name\": \"$name\"|" "$TEMPLATES/wagner.json" > "$name/wagner.json"
     ok "Project '$name' created in $(pwd)/$name/"
-    info "  cd $name && wagn0 dev"
+    info "  cd $name && wagner dev"
 }
 
 cmd_init() {
@@ -207,11 +207,11 @@ cmd_init() {
         [ -f "$f" ] && [ -z "$force" ] && { err "$f exists, use --force"; continue; }
         cp "$TEMPLATES/$f" "$f" && ok "$f created"
     done
-    if [ ! -f wagn0.json ] || [ -n "$force" ]; then
+    if [ ! -f wagner.json ] || [ -n "$force" ]; then
         local dname
         dname=$(basename "$(pwd)")
-        sed "s|\"name\": \"\"|\"name\": \"$dname\"|" "$TEMPLATES/wagn0.json" > wagn0.json
-        ok "wagn0.json created"
+        sed "s|\"name\": \"\"|\"name\": \"$dname\"|" "$TEMPLATES/wagner.json" > wagner.json
+        ok "wagner.json created"
     fi
     mkdir -p assets
 }
@@ -242,7 +242,7 @@ cmd_run() {
             file="game.wasm"
         fi
     fi
-    [ ! -f "$file" ] && { err "ROM file not found: $file"; info "Build first: wagn0 build"; return 1; }
+    [ ! -f "$file" ] && { err "ROM file not found: $file"; info "Build first: wagner build"; return 1; }
     run_wasm "$file"
 }
 
@@ -302,7 +302,7 @@ main() {
 
     case "$1" in
         new)
-            [ $# -lt 2 ] && { err "Usage: wagn0 new <name>"; exit 1; }
+            [ $# -lt 2 ] && { err "Usage: wagner new <name>"; exit 1; }
             cmd_new "$2"
             ;;
         init)

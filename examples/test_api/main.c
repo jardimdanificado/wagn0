@@ -1,5 +1,5 @@
 /**
- * test_api — exercita todas as funções adicionadas no último fix do wagn0:
+ * test_api — exercita todas as funções adicionadas no último fix do wagner:
  *
  *   draw_circle / draw_circle_outline
  *   draw_rect_outline
@@ -16,10 +16,10 @@
  *   R      — re-semente o RNG com ticks atual
  *   ↑↓     — muda seção exibida (0-4)
  */
-#include "wagn0.h"
+#include "wagner.h"
 
 // ── Assets ───────────────────────────────────────────────────────────────────
-static Wagn0Audio beep = {0};
+static WagnerAudio beep = {0};
 static int        beep_playing = 0;
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -127,11 +127,11 @@ static void draw_section3(void) {
     // dist do mouse ao centro
     float cx = screen.width  / 2.0f;
     float cy = screen.height / 2.0f;
-    float d  = dist(wagn0.mouse.x, wagn0.mouse.y, cx, cy);
-    float dsq = dist_sq(wagn0.mouse.x, wagn0.mouse.y, cx, cy);
+    float d  = dist(wagner.mouse.x, wagner.mouse.y, cx, cy);
+    float dsq = dist_sq(wagner.mouse.x, wagner.mouse.y, cx, cy);
 
     push(); translate((int)cx, (int)cy); scale((int)d, (int)d); stroke(YELLOW); draw_circle(); pop();
-    push(); translate((int)wagn0.mouse.x, (int)wagn0.mouse.y); scale(4, 4); fill(RED); draw_circle(); pop();
+    push(); translate((int)wagner.mouse.x, (int)wagner.mouse.y); scale(4, 4); fill(RED); draw_circle(); pop();
 
     // Imprime valores numéricos simples (sem sprintf)
     push(); translate(4, 40); fill(WHITE); draw_text("dist  mouse->centro:"); pop();
@@ -198,7 +198,7 @@ void setup(void) {
 }
 
 void draw(void) {
-    anim += wagn0.delta_time * 2.0f;
+    anim += wagner.delta_time * 2.0f;
 
     // ── HUD: barra de navegação ──
     clear(rgb(10, 10, 20));

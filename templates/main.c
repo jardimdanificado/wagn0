@@ -1,5 +1,5 @@
-#define WAGN0_NO_DEFAULT_CALLBACKS
-#include "wagn0.h"
+#define WAGNER_NO_DEFAULT_CALLBACKS
+#include "wagner.h"
 
 void draw() {
     clear(screen, BLUE);
