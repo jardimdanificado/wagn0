@@ -291,21 +291,57 @@ static inline Vec2 vec2_normalize(Vec2 v) {
 Canvas canvas_sub(Canvas src, int x, int y, int w, int h);
 
 // ============================================
+// TRANSFORMS & STATE
+// ============================================
+
+typedef struct {
+    float a, c, e;
+    float b, d, f;
+} Wagn0Matrix;
+
+typedef struct {
+    Wagn0Matrix matrix;
+    Canvas* target;
+    pixel_t fill_color;
+    pixel_t stroke_color;
+    bool has_fill;
+    bool has_stroke;
+    Canvas* texture;
+    bool has_color_key;
+    uint32_t color_key;
+} Wagn0RenderState;
+
+void push(void);
+void pop(void);
+void translate(float x, float y);
+void rotate(float angle);
+void scale(float sx, float sy);
+void apply_matrix(float a, float b, float c, float d, float e, float f);
+
+void render_target(Canvas* c);
+void fill(pixel_t color);
+void no_fill(void);
+void stroke(pixel_t color);
+void no_stroke(void);
+void texture(Canvas* img);
+void no_texture(void);
+void color_key(uint32_t key);
+void no_color_key(void);
+
+// ============================================
 // DRAWING PRIMITIVES
 // ============================================
 
-void clear(Canvas c, pixel_t color);
-void draw_rect(Canvas c, int x, int y, int w, int h, pixel_t color);
- void draw_rect_outline(Canvas c, int x, int y, int w, int h, pixel_t color);
-void draw_circle(Canvas c, int cx, int cy, int radius, pixel_t color);
-void draw_circle_outline(Canvas c, int cx, int cy, int radius, pixel_t color);
-void draw_ellipse(Canvas c, int x, int y, int w, int h, pixel_t color);
-void draw_line(Canvas c, int x1, int y1, int x2, int y2, pixel_t color);
-void draw_pixel(Canvas c, int x, int y, pixel_t color);
-void draw_triangle(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, pixel_t color);
+void clear(pixel_t color);
+void draw_quad(void);
+void draw_circle(void);
+void draw_triangle(void); // Unit triangle
+void draw_triangle_pts(float x1, float y1, float x2, float y2, float x3, float y3);
+void draw_line(float x1, float y1, float x2, float y2);
+void draw_pixel(float x, float y);
 
 // Pixel access
-pixel_t pixel_at(Canvas c, int x, int y);
+pixel_t pixel_at(int x, int y);
 
 // Texture-mapped triangle (perspective-correct UV)
 void draw_triangle3uv(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3,
@@ -316,7 +352,7 @@ void draw_triangle3uv(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3,
 // TEXT FUNCTIONS
 // ============================================
 
-void draw_text(Canvas c, const char* text, int x, int y, pixel_t color);
+void draw_text(const char* text);
 void text_size(int size);
 int text_width(const char* text);
 
@@ -326,10 +362,6 @@ int text_width(const char* text);
 
 Canvas canvas_create(int w, int h, int bpp);
 Canvas img_create(const void* data, int width, int height, int bpp);
-void draw_canvas(Canvas c, Canvas img, int x, int y);
-void draw_canvas_scaled(Canvas c, Canvas img, int x, int y, int w, int h);
-void draw_canvas_ex(Canvas c, Canvas img, int x, int y, int use_color_key, uint32_t color_key);
-void draw_canvas_scaled_ex(Canvas c, Canvas img, int x, int y, int w, int h, int use_color_key, uint32_t color_key);
 Canvas img_load(const uint8_t* data, size_t size);
 static inline pixel_t lerp_color(pixel_t a, pixel_t b, float t);
 static inline int text_height(void);
@@ -619,7 +651,119 @@ Canvas canvas_sub(Canvas src, int x, int y, int w, int h) {
     return c;
 }
 
-void clear(Canvas c, pixel_t color) {
+static Wagn0RenderState _wagn0_state_stack[32] = {
+    { {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f}, NULL, 0, 0, false, false, NULL, false, 0 }
+};
+static int _wagn0_state_sp = 0;
+
+static inline Wagn0RenderState* _wagn0_current_state(void) {
+    return &_wagn0_state_stack[_wagn0_state_sp];
+}
+
+static inline Wagn0Matrix* _wagn0_current_matrix(void) {
+    return &_wagn0_state_stack[_wagn0_state_sp].matrix;
+}
+
+void push(void) {
+    if (_wagn0_state_sp < 31) {
+        _wagn0_state_stack[_wagn0_state_sp + 1] = _wagn0_state_stack[_wagn0_state_sp];
+        _wagn0_state_sp++;
+    }
+}
+
+void pop(void) {
+    if (_wagn0_state_sp > 0) {
+        _wagn0_state_sp--;
+    }
+}
+
+static inline Canvas _wagn0_get_target(void) {
+    Canvas* t = _wagn0_current_state()->target;
+    return t ? *t : screen;
+}
+
+void render_target(Canvas* c) { _wagn0_current_state()->target = c; }
+void fill(pixel_t color) { _wagn0_current_state()->has_fill = true; _wagn0_current_state()->fill_color = color; }
+void no_fill(void) { _wagn0_current_state()->has_fill = false; }
+void stroke(pixel_t color) { _wagn0_current_state()->has_stroke = true; _wagn0_current_state()->stroke_color = color; }
+void no_stroke(void) { _wagn0_current_state()->has_stroke = false; }
+void texture(Canvas* img) { _wagn0_current_state()->texture = img; }
+void no_texture(void) { _wagn0_current_state()->texture = NULL; }
+void color_key(uint32_t key) { _wagn0_current_state()->has_color_key = true; _wagn0_current_state()->color_key = key; }
+void no_color_key(void) { _wagn0_current_state()->has_color_key = false; }
+
+static inline void _wagn0_mat_mul(Wagn0Matrix* m, float a, float b, float c, float d, float e, float f) {
+    float nm_a = m->a * a + m->c * b;
+    float nm_b = m->b * a + m->d * b;
+    float nm_c = m->a * c + m->c * d;
+    float nm_d = m->b * c + m->d * d;
+    float nm_e = m->a * e + m->c * f + m->e;
+    float nm_f = m->b * e + m->d * f + m->f;
+    m->a = nm_a; m->b = nm_b; m->c = nm_c; m->d = nm_d; m->e = nm_e; m->f = nm_f;
+}
+
+void translate(float x, float y) {
+    _wagn0_mat_mul(_wagn0_current_matrix(), 1.0f, 0.0f, 0.0f, 1.0f, x, y);
+}
+
+void rotate(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    _wagn0_mat_mul(_wagn0_current_matrix(), c, s, -s, c, 0.0f, 0.0f);
+}
+
+void scale(float sx, float sy) {
+    _wagn0_mat_mul(_wagn0_current_matrix(), sx, 0.0f, 0.0f, sy, 0.0f, 0.0f);
+}
+
+void apply_matrix(float a, float b, float c, float d, float e, float f) {
+    _wagn0_mat_mul(_wagn0_current_matrix(), a, b, c, d, e, f);
+}
+
+static inline void _wagn0_transform(float* x, float* y) {
+    Wagn0Matrix* m = _wagn0_current_matrix();
+    float nx = m->a * (*x) + m->c * (*y) + m->e;
+    float ny = m->b * (*x) + m->d * (*y) + m->f;
+    *x = nx;
+    *y = ny;
+}
+
+static inline int _wagn0_is_axis_aligned(void) {
+    Wagn0Matrix* m = _wagn0_current_matrix();
+    return (wabs(m->b) < 0.001f && wabs(m->c) < 0.001f);
+}
+
+// Helper: read a pixel from any image/Canvas and return RGBA components
+static inline Color _pixel_to_rgba(Canvas img, int index) {
+    Color c = {0,0,0,255};
+    if (img.bpp == 32) {
+        uint32_t p = ((uint32_t*)img.pixels)[index];
+        c.r = p & 0xFF; c.g = (p>>8)&0xFF; c.b = (p>>16)&0xFF; c.a = (p>>24)&0xFF;
+    } else if (img.bpp == 24) {
+        uint8_t* p = &((uint8_t*)img.pixels)[index * 3];
+        c.r = p[0]; c.g = p[1]; c.b = p[2]; c.a = 255;
+    } else if (img.bpp == 16) {
+        uint16_t p = ((uint16_t*)img.pixels)[index];
+        c.r = ((p>>11)&0x1F)*255/31; c.g = ((p>>5)&0x3F)*255/63; c.b = (p&0x1F)*255/31;
+    } else {
+        uint8_t p = ((uint8_t*)img.pixels)[index];
+        c.r = ((p>>5)&7)*255/7; c.g = ((p>>2)&7)*255/7; c.b = (p&3)*255/3;
+    }
+    return c;
+}
+
+static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (x < 0 || x >= c.width || y < 0 || y >= c.height) return;
+    if (c.bpp == 32) ((uint32_t*)c.pixels)[y * c.stride + x] = r | (g<<8) | (b<<16) | (a<<24);
+    else if (c.bpp == 24) {
+        uint8_t* p = &((uint8_t*)c.pixels)[(y * c.stride + x) * 3];
+        p[0] = r; p[1] = g; p[2] = b;
+    } else if (c.bpp == 16) ((uint16_t*)c.pixels)[y * c.stride + x] = ((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);
+    else ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
+}
+
+void clear(pixel_t color) {
+    Canvas c = _wagn0_get_target();
     size_t n = (size_t)c.width * c.height;
     if (c.bpp == 32) { uint32_t* p = (uint32_t*)c.pixels; while (n--) *p++ = (uint32_t)color; }
     else if (c.bpp == 24) {
@@ -631,67 +775,243 @@ void clear(Canvas c, pixel_t color) {
     else { uint8_t* p = (uint8_t*)c.pixels; while (n--) *p++ = (uint8_t)color; }
 }
 
-void draw_rect(Canvas c, int x, int y, int w, int h, pixel_t color) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    olivec_rect(oc, x, y, w, h, color);
-}
 
-void draw_rect_outline(Canvas c, int x, int y, int w, int h, pixel_t color) {
-    draw_rect(c, x,         y,         w, 1, color);
-    draw_rect(c, x,         y + h - 1, w, 1, color);
-    draw_rect(c, x,         y,         1, h, color);
-    draw_rect(c, x + w - 1, y,         1, h, color);
-}
+static void _wagn0_triangle_textured(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, 
+                                     float tx1, float ty1, float tx2, float ty2, float tx3, float ty3, 
+                                     Canvas tex, int has_tint, pixel_t tint_color) {
+    int lx = x1, hx = x1, ly = y1, hy = y1;
+    if (x2 < lx) lx = x2; if (x3 < lx) lx = x3; if (x2 > hx) hx = x2; if (x3 > hx) hx = x3;
+    if (y2 < ly) ly = y2; if (y3 < ly) ly = y3; if (y2 > hy) hy = y2; if (y3 > hy) hy = y3;
+    if (lx < 0) lx = 0; if (hx >= (int)c.width) hx = (int)c.width - 1;
+    if (ly < 0) ly = 0; if (hy >= (int)c.height) hy = (int)c.height - 1;
+    
+    // Convert tint color to RGBA if needed
+    Color tint = {255, 255, 255, 255};
+    if (has_tint) {
+        // We create a temporary 1x1 canvas to convert target format back to RGBA
+        Canvas tmp_c = c;
+        tmp_c.pixels = &tint_color;
+        tmp_c.width = 1; tmp_c.stride = 1; tmp_c.height = 1;
+        tint = _pixel_to_rgba(tmp_c, 0);
+    }
 
-void draw_circle(Canvas c, int cx, int cy, int radius, pixel_t color) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    // Filled circle using scanlines
-    for (int y = -radius; y <= radius; y++) {
-        int dx = (int)sqrt((float)(radius * radius - y * y));
-        for (int x = -dx; x <= dx; x++)
-            olivec_set_pixel(oc, cx + x, cy + y, color);
+    for (int y = ly; y <= hy; ++y) {
+        for (int x = lx; x <= hx; ++x) {
+            int u1, u2, det;
+            if (olivec_barycentric(x1, y1, x2, y2, x3, y3, x, y, &u1, &u2, &det)) {
+                float u3 = (float)(det - u1 - u2) / det, fu1 = (float)u1 / det, fu2 = (float)u2 / det;
+                float tx = tx1*fu1 + tx2*fu2 + tx3*u3;
+                float ty = ty1*fu1 + ty2*fu2 + ty3*u3;
+                
+                int sx = (int)(tx * tex.width);
+                int sy = (int)(ty * tex.height);
+                if (sx < 0) sx = 0; if (sx >= tex.width) sx = tex.width - 1;
+                if (sy < 0) sy = 0; if (sy >= tex.height) sy = tex.height - 1;
+                
+                Color col = _pixel_to_rgba(tex, sy * tex.width + sx);
+                
+                if (has_tint) {
+                    col.r = (col.r * tint.r) / 255;
+                    col.g = (col.g * tint.g) / 255;
+                    col.b = (col.b * tint.b) / 255;
+                    col.a = (col.a * tint.a) / 255;
+                }
+                
+                if (col.a > 128) { // simple alpha test
+                    _canvas_set_pixel(c, x, y, col.r, col.g, col.b, col.a);
+                }
+            }
+        }
     }
 }
 
-void draw_circle_outline(Canvas c, int cx, int cy, int radius, pixel_t color) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    olivec_circle(oc, cx, cy, radius, color);
+void draw_quad(void) {
+    Canvas c = _wagn0_get_target();
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+    Wagn0RenderState* state = _wagn0_current_state();
+    
+    if (state->texture != NULL) {
+        Canvas img = *state->texture;
+        if (_wagn0_is_axis_aligned()) {
+            float fx = 0.0f, fy = 0.0f; _wagn0_transform(&fx, &fy);
+            Wagn0Matrix* m = _wagn0_current_matrix();
+            int nx = (int)fx, ny = (int)fy, nw = (int)m->a, nh = (int)m->d;
+            if (nw < 0) { nx += nw; nw = -nw; }
+            if (nh < 0) { ny += nh; nh = -nh; }
+            
+            for (int iy = 0; iy < nh; iy++) {
+                for (int ix = 0; ix < nw; ix++) {
+                    int px = nx + ix, py = ny + iy;
+                    if (px < 0 || px >= c.width || py < 0 || py >= c.height) continue;
+                    int sx = ix * img.width / nw, sy = iy * img.height / nh;
+                    
+                    if (state->has_color_key) {
+                        uint32_t p = 0;
+                        if (img.bpp == 32) p = ((uint32_t*)img.pixels)[sy * img.width + sx];
+                        else if (img.bpp == 24) {
+                            uint8_t* pxc = &((uint8_t*)img.pixels)[(sy * img.width + sx) * 3];
+                            p = pxc[0] | (pxc[1]<<8) | (pxc[2]<<16);
+                        } else if (img.bpp == 16) p = ((uint16_t*)img.pixels)[sy * img.width + sx];
+                        else p = ((uint8_t*)img.pixels)[sy * img.width + sx];
+                        if (p == state->color_key) continue;
+                    }
+                    
+                    Color col = _pixel_to_rgba(img, sy * img.width + sx);
+                    if (img.bpp == 32 && col.a <= 128) continue;
+                    _canvas_set_pixel(c, px, py, col.r, col.g, col.b, col.a);
+                }
+            }
+        } else {
+            float x1 = 0.0f, y1 = 0.0f; _wagn0_transform(&x1, &y1);
+            float x2 = 1.0f, y2 = 0.0f; _wagn0_transform(&x2, &y2);
+            float x3 = 1.0f, y3 = 1.0f; _wagn0_transform(&x3, &y3);
+            float x4 = 0.0f, y4 = 1.0f; _wagn0_transform(&x4, &y4);
+            Olivec_Canvas tex_oc = { img.pixels, (size_t)img.width, (size_t)img.height, (size_t)img.stride, img.bpp };
+            _wagn0_triangle_textured(c, (int)x1, (int)y1, (int)x2, (int)y2, (int)x4, (int)y4, 0, 0, 1, 0, 0, 1, img, state->has_fill, state->fill_color);
+            _wagn0_triangle_textured(c, (int)x2, (int)y2, (int)x3, (int)y3, (int)x4, (int)y4, 1, 0, 1, 1, 0, 1, img, state->has_fill, state->fill_color);
+        }
+    } else if (state->has_fill) {
+        if (_wagn0_is_axis_aligned()) {
+            float fx = 0, fy = 0; _wagn0_transform(&fx, &fy);
+            Wagn0Matrix* m = _wagn0_current_matrix();
+            int nx = (int)fx, ny = (int)fy, nw = (int)(1.0f * m->a), nh = (int)(1.0f * m->d);
+            if (nw < 0) { nx += nw; nw = -nw; }
+            if (nh < 0) { ny += nh; nh = -nh; }
+            olivec_rect(oc, nx, ny, nw, nh, state->fill_color);
+        } else {
+            float x1 = 0.0f, y1 = 0.0f; _wagn0_transform(&x1, &y1);
+            float x2 = 1.0f, y2 = 0.0f; _wagn0_transform(&x2, &y2);
+            float x3 = 1.0f, y3 = 1.0f; _wagn0_transform(&x3, &y3);
+            float x4 = 0.0f, y4 = 1.0f; _wagn0_transform(&x4, &y4);
+            olivec_triangle(oc, (int)x1, (int)y1, (int)x2, (int)y2, (int)x4, (int)y4, state->fill_color);
+            olivec_triangle(oc, (int)x2, (int)y2, (int)x3, (int)y3, (int)x4, (int)y4, state->fill_color);
+        }
+    }
+    
+    if (state->has_stroke) {
+        float x1 = 0.0f, y1 = 0.0f; _wagn0_transform(&x1, &y1);
+        float x2 = 1.0f, y2 = 0.0f; _wagn0_transform(&x2, &y2);
+        float x3 = 1.0f, y3 = 1.0f; _wagn0_transform(&x3, &y3);
+        float x4 = 0.0f, y4 = 1.0f; _wagn0_transform(&x4, &y4);
+        olivec_line(oc, (int)x1, (int)y1, (int)x2, (int)y2, state->stroke_color);
+        olivec_line(oc, (int)x2, (int)y2, (int)x3, (int)y3, state->stroke_color);
+        olivec_line(oc, (int)x3, (int)y3, (int)x4, (int)y4, state->stroke_color);
+        olivec_line(oc, (int)x4, (int)y4, (int)x1, (int)y1, state->stroke_color);
+    }
 }
 
-void draw_ellipse(Canvas c, int x, int y, int w, int h, pixel_t color) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    int rx = w / 2, ry = h / 2;
-    for (int iy = -ry; iy <= ry; iy++)
-        for (int ix = -rx; ix <= rx; ix++)
-            if ((float)(ix*ix)/(rx*rx) + (float)(iy*iy)/(ry*ry) <= 1.0f)
-                olivec_set_pixel(oc, x + ix, y + iy, (uint32_t)color);
+void draw_circle(void) {
+    Canvas c = _wagn0_get_target();
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+    Wagn0RenderState* state = _wagn0_current_state();
+    
+    if (state->texture != NULL) {
+        Canvas img = *state->texture;
+        Olivec_Canvas tex_oc = { img.pixels, (size_t)img.width, (size_t)img.height, (size_t)img.stride, img.bpp };
+        
+        float cx_f = 0, cy_f = 0; _wagn0_transform(&cx_f, &cy_f);
+        float last_x = 1.0f, last_y = 0.0f; _wagn0_transform(&last_x, &last_y);
+        
+        float last_u = 1.0f, last_v = 0.5f;
+        for (int i = 1; i <= 32; i++) {
+            float ang = i * TWO_PI / 32.0f;
+            float px = cos(ang), py = sin(ang);
+            float pu = px * 0.5f + 0.5f;
+            float pv = py * 0.5f + 0.5f;
+            _wagn0_transform(&px, &py);
+            
+            _wagn0_triangle_textured(c, (int)cx_f, (int)cy_f, (int)last_x, (int)last_y, (int)px, (int)py, 0.5f, 0.5f, last_u, last_v, pu, pv, img, state->has_fill, state->fill_color);
+            last_x = px; last_y = py;
+            last_u = pu; last_v = pv;
+        }
+    } else if (state->has_fill) {
+        if (_wagn0_is_axis_aligned()) {
+            float fx = 0, fy = 0; _wagn0_transform(&fx, &fy);
+            Wagn0Matrix* m = _wagn0_current_matrix();
+            float rx = wabs(m->a), ry = wabs(m->d);
+            
+            if (wabs(rx - ry) < 0.001f) {
+                int r = (int)rx;
+                for (int y = -r; y <= r; y++) {
+                    int dx = (int)sqrt((float)(r * r - y * y));
+                    for (int x = -dx; x <= dx; x++) olivec_set_pixel(oc, (int)fx + x, (int)fy + y, state->fill_color);
+                }
+            } else {
+                int irx = (int)rx, iry = (int)ry;
+                if (irx > 0 && iry > 0) {
+                    for (int iy = -iry; iy <= iry; iy++)
+                        for (int ix = -irx; ix <= irx; ix++)
+                            if ((float)(ix*ix)/(irx*irx) + (float)(iy*iy)/(iry*iry) <= 1.0f)
+                                olivec_set_pixel(oc, (int)fx + ix, (int)fy + iy, state->fill_color);
+                }
+            }
+        } else {
+            float cx_f = 0, cy_f = 0; _wagn0_transform(&cx_f, &cy_f);
+            float last_x = 1.0f, last_y = 0.0f; _wagn0_transform(&last_x, &last_y);
+            for (int i = 1; i <= 32; i++) {
+                float ang = i * TWO_PI / 32.0f;
+                float px = cos(ang), py = sin(ang); _wagn0_transform(&px, &py);
+                olivec_triangle(oc, (int)cx_f, (int)cy_f, (int)last_x, (int)last_y, (int)px, (int)py, state->fill_color);
+                last_x = px; last_y = py;
+            }
+        }
+    }
+    if (state->has_stroke) {
+        if (_wagn0_is_axis_aligned()) {
+            float fx = 0, fy = 0; _wagn0_transform(&fx, &fy);
+            Wagn0Matrix* m = _wagn0_current_matrix();
+            olivec_circle(oc, (int)fx, (int)fy, (int)wabs(m->a), state->stroke_color);
+        } else {
+            float last_x = 1.0f, last_y = 0.0f; _wagn0_transform(&last_x, &last_y);
+            for (int i = 1; i <= 32; i++) {
+                float ang = i * TWO_PI / 32.0f;
+                float px = cos(ang), py = sin(ang); _wagn0_transform(&px, &py);
+                olivec_line(oc, (int)last_x, (int)last_y, (int)px, (int)py, state->stroke_color);
+                last_x = px; last_y = py;
+            }
+        }
+    }
 }
 
-void draw_line(Canvas c, int x1, int y1, int x2, int y2, pixel_t color) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    olivec_line(oc, x1, y1, x2, y2, color);
+void draw_triangle_pts(float x1, float y1, float x2, float y2, float x3, float y3) {
+    Canvas c = _wagn0_get_target();
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+    Wagn0RenderState* state = _wagn0_current_state();
+    float fx1 = x1, fy1 = y1; _wagn0_transform(&fx1, &fy1);
+    float fx2 = x2, fy2 = y2; _wagn0_transform(&fx2, &fy2);
+    float fx3 = x3, fy3 = y3; _wagn0_transform(&fx3, &fy3);
+    if (state->has_fill) olivec_triangle(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, (int)fx3, (int)fy3, state->fill_color);
+    if (state->has_stroke) {
+        olivec_line(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, state->stroke_color);
+        olivec_line(oc, (int)fx2, (int)fy2, (int)fx3, (int)fy3, state->stroke_color);
+        olivec_line(oc, (int)fx3, (int)fy3, (int)fx1, (int)fy1, state->stroke_color);
+    }
 }
 
-void draw_pixel(Canvas c, int x, int y, pixel_t color) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    olivec_set_pixel(oc, x, y, (uint32_t)color);
+void draw_triangle(void) { draw_triangle_pts(0, -1, 0.866025f, 0.5f, -0.866025f, 0.5f); }
+
+void draw_line(float x1, float y1, float x2, float y2) {
+    Canvas c = _wagn0_get_target();
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+    Wagn0RenderState* state = _wagn0_current_state();
+    if (!state->has_stroke) return;
+    float fx1 = x1, fy1 = y1; _wagn0_transform(&fx1, &fy1);
+    float fx2 = x2, fy2 = y2; _wagn0_transform(&fx2, &fy2);
+    olivec_line(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, state->stroke_color);
 }
 
-void draw_triangle(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, pixel_t color) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    olivec_triangle(oc, x1, y1, x2, y2, x3, y3, color);
+void draw_pixel(float x, float y) {
+    Canvas c = _wagn0_get_target();
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+    Wagn0RenderState* state = _wagn0_current_state();
+    if (!state->has_fill) return;
+    float fx = x, fy = y; _wagn0_transform(&fx, &fy);
+    olivec_set_pixel(oc, (int)fx, (int)fy, state->fill_color);
 }
 
-pixel_t pixel_at(Canvas c, int x, int y) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
+pixel_t pixel_at(int x, int y) {
+    Canvas c = _wagn0_get_target();
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     return (pixel_t)olivec_get_pixel(oc, x, y);
 }
 
@@ -700,11 +1020,12 @@ void draw_triangle3uv(Canvas c,
     float tx1, float ty1, float tx2, float ty2, float tx3, float ty3,
     float z1, float z2, float z3, Canvas texture)
 {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    Olivec_Canvas tex = { texture.pixels, (size_t)texture.width, (size_t)texture.height,
-                         (size_t)texture.stride, texture.bpp };
-    olivec_triangle3uv(oc, x1, y1, x2, y2, x3, y3,
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+    Olivec_Canvas tex = { texture.pixels, (size_t)texture.width, (size_t)texture.height, (size_t)texture.stride, texture.bpp };
+    float fx1 = x1, fy1 = y1; _wagn0_transform(&fx1, &fy1);
+    float fx2 = x2, fy2 = y2; _wagn0_transform(&fx2, &fy2);
+    float fx3 = x3, fy3 = y3; _wagn0_transform(&fx3, &fy3);
+    olivec_triangle3uv(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, (int)fx3, (int)fy3,
         tx1, ty1, tx2, ty2, tx3, ty3,
         z1, z2, z3, tex);
 }
@@ -715,21 +1036,23 @@ void draw_triangle3uv(Canvas c,
 
 static int _wagn0_text_size = 1;
 
-void draw_text(Canvas c, const char* text_str, int x, int y, pixel_t color) {
-    // olivec font only has a-z and 0-9. Convert uppercase to lowercase.
+void draw_text(const char* text_str) {
+    Canvas c = _wagn0_get_target();
+    Wagn0RenderState* state = _wagn0_current_state();
+    if (!state->has_fill) return;
+    
+    float fx = 0, fy = 0; _wagn0_transform(&fx, &fy);
     char buf[256];
     const char* src = text_str;
     char* dst = buf;
     while (*src && dst - buf < 255) {
         char ch = *src++;
-        if (ch >= 'A' && ch <= 'Z') ch += 32;  // → lowercase
+        if (ch >= 'A' && ch <= 'Z') ch += 32;
         *dst++ = ch;
     }
     *dst = 0;
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    olivec_text(oc, buf, x, y, olivec_default_font,
-                (size_t)_wagn0_text_size, (uint32_t)color);
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+    olivec_text(oc, buf, (int)fx, (int)fy, olivec_default_font, (size_t)_wagn0_text_size, (uint32_t)state->fill_color);
 }
 
 void text_size(int size) {
@@ -759,24 +1082,6 @@ Canvas img_create(const void* data, int width, int height, int bpp) {
     return img;
  }
 
-// Helper: read a pixel from any image/Canvas and return RGBA components
-static inline Color _pixel_to_rgba(Canvas img, int index) {
-    Color c = {0,0,0,255};
-    if (img.bpp == 32) {
-        uint32_t p = ((uint32_t*)img.pixels)[index];
-        c.r = p & 0xFF; c.g = (p>>8)&0xFF; c.b = (p>>16)&0xFF; c.a = (p>>24)&0xFF;
-    } else if (img.bpp == 24) {
-        uint8_t* p = &((uint8_t*)img.pixels)[index * 3];
-        c.r = p[0]; c.g = p[1]; c.b = p[2]; c.a = 255;
-    } else if (img.bpp == 16) {
-        uint16_t p = ((uint16_t*)img.pixels)[index];
-        c.r = ((p>>11)&0x1F)*255/31; c.g = ((p>>5)&0x3F)*255/63; c.b = (p&0x1F)*255/31;
-    } else {
-        uint8_t p = ((uint8_t*)img.pixels)[index];
-        c.r = ((p>>5)&7)*255/7; c.g = ((p>>2)&7)*255/7; c.b = (p&3)*255/3;
-    }
-    return c;
-}
 
 static inline pixel_t lerp_color(pixel_t a, pixel_t b, float t) {
     uint8_t ar = a & 0xFF,        ag = (a >> 8) & 0xFF,  ab_ = (a >> 16) & 0xFF;
@@ -790,74 +1095,8 @@ static inline pixel_t lerp_color(pixel_t a, pixel_t b, float t) {
 static inline int text_height(void) {
     return (int)(olivec_default_font.height * (size_t)_wagn0_text_size);
 }
-static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-    if (x < 0 || x >= c.width || y < 0 || y >= c.height) return;
-    if (c.bpp == 32) ((uint32_t*)c.pixels)[y * c.stride + x] = r | (g<<8) | (b<<16) | (a<<24);
-    else if (c.bpp == 24) {
-        uint8_t* p = &((uint8_t*)c.pixels)[(y * c.stride + x) * 3];
-        p[0] = r; p[1] = g; p[2] = b;
-    } else if (c.bpp == 16) ((uint16_t*)c.pixels)[y * c.stride + x] = ((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);
-    else ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
-}
 
-void draw_canvas_ex(Canvas c, Canvas img, int x, int y, int use_color_key, uint32_t color_key) {
-    if (!img.pixels) return;
-    for (int iy = 0; iy < img.height; iy++) {
-        for (int ix = 0; ix < img.width; ix++) {
-            int px = x + ix, py = y + iy;
-            if (px < 0 || px >= c.width || py < 0 || py >= c.height) continue;
-            
-            if (use_color_key) {
-                uint32_t p = 0;
-                if (img.bpp == 32) p = ((uint32_t*)img.pixels)[iy * img.width + ix];
-                else if (img.bpp == 24) {
-                    uint8_t* px = &((uint8_t*)img.pixels)[(iy * img.width + ix) * 3];
-                    p = px[0] | (px[1]<<8) | (px[2]<<16);
-                } else if (img.bpp == 16) p = ((uint16_t*)img.pixels)[iy * img.width + ix];
-                else p = ((uint8_t*)img.pixels)[iy * img.width + ix];
-                if (p == color_key) continue;
-            }
-            
-            Color col = _pixel_to_rgba(img, iy * img.width + ix);
-            if (img.bpp == 32 && col.a <= 128) continue;
-            _canvas_set_pixel(c, px, py, col.r, col.g, col.b, col.a);
-        }
-    }
-}
 
-void draw_canvas(Canvas c, Canvas img, int x, int y) {
-    draw_canvas_ex(c, img, x, y, 0, 0);
-}
-
-void draw_canvas_scaled_ex(Canvas c, Canvas img, int x, int y, int w, int h, int use_color_key, uint32_t color_key) {
-    if (!img.pixels) return;
-    for (int iy = 0; iy < h; iy++) {
-        for (int ix = 0; ix < w; ix++) {
-            int px = x + ix, py = y + iy;
-            if (px < 0 || px >= c.width || py < 0 || py >= c.height) continue;
-            int sx = ix * img.width / w, sy = iy * img.height / h;
-            
-            if (use_color_key) {
-                uint32_t p = 0;
-                if (img.bpp == 32) p = ((uint32_t*)img.pixels)[sy * img.width + sx];
-                else if (img.bpp == 24) {
-                    uint8_t* px = &((uint8_t*)img.pixels)[(sy * img.width + sx) * 3];
-                    p = px[0] | (px[1]<<8) | (px[2]<<16);
-                } else if (img.bpp == 16) p = ((uint16_t*)img.pixels)[sy * img.width + sx];
-                else p = ((uint8_t*)img.pixels)[sy * img.width + sx];
-                if (p == color_key) continue;
-            }
-            
-            Color col = _pixel_to_rgba(img, sy * img.width + sx);
-            if (img.bpp == 32 && col.a <= 128) continue;
-            _canvas_set_pixel(c, px, py, col.r, col.g, col.b, col.a);
-        }
-    }
-}
-
-void draw_canvas_scaled(Canvas c, Canvas img, int x, int y, int w, int h) {
-    draw_canvas_scaled_ex(c, img, x, y, w, h, 0, 0);
-}
 
 // ============================================
 // DECODER WRAPPERS FOR ASSET DATA

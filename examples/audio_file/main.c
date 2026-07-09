@@ -11,7 +11,7 @@ void setup() {
 }
 
 void draw() {
-    clear(screen, rgb(20, 20, 25));
+    clear(rgb(20, 20, 25));
     
     int playing = audio_is_playing();
     
@@ -24,13 +24,13 @@ void draw() {
     
     pixel_t color = playing ? GREEN : GRAY;
     
-    draw_circle_outline(screen, cx, cy, (int)r, color);
-    draw_circle_outline(screen, cx, cy, (int)r + 1, color);
+    push(); translate(cx, cy); scale((int)r, (int)r); stroke(color); draw_circle(); pop();
+    push(); translate(cx, cy); scale((int)r + 1, (int)r + 1); stroke(color); draw_circle(); pop();
     
     // Play/Stop label
     const char* label = playing ? "PLAYING" : "STOPPED";
     int tw = text_width(label);
-    draw_text(screen, label, cx - tw / 2, cy - text_height() / 2, color);
+    push(); translate(cx - tw / 2, cy - text_height() / 2); fill(color); draw_text(label); pop();
     
     // Progress ring (fake progress since we don't have get_position)
     if (playing) {
@@ -40,17 +40,17 @@ void draw() {
             float angle = -HALF_PI + i * (TWO_PI / 32.0f);
             int px = cx + (int)(cos(angle) * (r + 10.0f));
             int py = cy + (int)(sin(angle) * (r + 10.0f));
-            draw_circle(screen, px, py, 2, CYAN);
+            push(); translate(px, py); scale(2, 2); fill(CYAN); draw_circle(); pop();
         }
     }
     
     // Keybinds panel
-    draw_rect_outline(screen, 60, 180, 200, 40, rgb(60, 60, 80));
-    draw_text(screen, "[SPACE] Play/Restart", 70, 185, WHITE);
-    draw_text(screen, "[S] Stop", 70, 205, WHITE);
+    push(); translate(60, 180); scale(200, 40); stroke(rgb(60, 60, 80)); draw_quad(); pop();
+    push(); translate(70, 185); fill(WHITE); draw_text("[SPACE] Play/Restart"); pop();
+    push(); translate(70, 205); fill(WHITE); draw_text("[S] Stop"); pop();
     
     if (!my_audio.samples) {
-        draw_text(screen, "Failed to load test.wav", 10, 10, RED);
+        push(); translate(10, 10); fill(RED); draw_text("Failed to load test.wav"); pop();
     }
 }
 

@@ -10,7 +10,7 @@ void setup() {
     last_switch = w_ticks;
 }
 
-static void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
+static void draw_number(int n, int x, int y, pixel_t color) {
     char str[16];
     int i = 0;
     if (n == 0) { str[i++] = '0'; }
@@ -22,11 +22,23 @@ static void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
         }
     }
     str[i] = '\0';
-    draw_text(c, str, x, y, color);
+    push();
+    translate(x, y);
+    fill(color);
+    draw_text(str);
+    pop();
+}
+
+static void draw_str(const char* str, int x, int y, pixel_t color) {
+    push();
+    translate(x, y);
+    fill(color);
+    draw_text(str);
+    pop();
 }
 
 void draw() {
-    clear(screen, rgb(15, 15, 15));
+    clear(rgb(15, 15, 15));
     
     uint32_t now = w_ticks;
     if (now - last_switch >= 2000) {
@@ -39,31 +51,52 @@ void draw() {
     int cx = 220, cy = 120, r = 60;
     float angle = now * 0.003f;
     
-    draw_circle_outline(screen, cx, cy, r, CYAN);
+    push();
+    translate(cx, cy);
+    scale(r, r);
+    stroke(CYAN);
+    draw_circle();
+    pop();
+    
     for (int i = 0; i < 8; i++) {
         float a = angle + i * (TWO_PI / 8.0f);
         int px = cx + (int)(cos(a) * r);
         int py = cy + (int)(sin(a) * r);
-        draw_line(screen, cx, cy, px, py, lerp_color(BLUE, CYAN, (float)i/7.0f));
+        push();
+        translate(cx, cy);
+        stroke(lerp_color(BLUE, CYAN, (float)i/7.0f));
+        draw_line(px - cx, py - cy, 0, 0); // Wait, old draw_line took x1,y1,x2,y2. In state machine draw_line takes x1,y1,x2,y2, but transformed. Wait, my draw_line definition is void draw_line(float x1, float y1, float x2, float y2);
+        pop();
     }
     
     // Panel
-    draw_rect_outline(screen, 10, 40, 140, 160, rgb(60, 60, 60));
-    draw_text(screen, "FPS TEST", 45, 50, WHITE);
-    draw_line(screen, 10, 70, 150, 70, rgb(60, 60, 60));
+    push();
+    translate(10, 40);
+    scale(140, 160);
+    stroke(rgb(60, 60, 60));
+    draw_quad();
+    pop();
     
-    draw_text(screen, "Target:", 20, 90, GRAY);
-    draw_number(screen, fps_values[fps_index], 90, 90, WHITE);
+    draw_str("FPS TEST", 45, 50, WHITE);
     
-    draw_text(screen, "Actual:", 20, 130, GRAY);
+    push();
+    translate(0, 0);
+    stroke(rgb(60, 60, 60));
+    draw_line(10, 70, 150, 70);
+    pop();
+    
+    draw_str("Target:", 20, 90, GRAY);
+    draw_number(fps_values[fps_index], 90, 90, WHITE);
+    
+    draw_str("Actual:", 20, 130, GRAY);
     
     // Color based on performance
     float ratio = (float)wagn0.fps / (float)fps_values[fps_index];
     if (ratio > 1.0f) ratio = 1.0f;
     pixel_t fps_color = lerp_color(RED, GREEN, ratio);
-    draw_number(screen, wagn0.fps, 90, 130, fps_color);
+    draw_number(wagn0.fps, 90, 130, fps_color);
     
-    draw_text(screen, "Delta:", 20, 170, GRAY);
-    draw_number(screen, (int)(wagn0.delta_time * 1000.0f), 90, 170, YELLOW);
-    draw_text(screen, "ms", 115, 170, YELLOW);
+    draw_str("Delta:", 20, 170, GRAY);
+    draw_number((int)(wagn0.delta_time * 1000.0f), 90, 170, YELLOW);
+    draw_str("ms", 115, 170, YELLOW);
 }

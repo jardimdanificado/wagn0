@@ -11,7 +11,7 @@ void setup() {
     counter = 0;
 }
 
-static void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
+static void draw_number(int n, int x, int y, pixel_t color) {
     char str[16];
     int i = 0;
     if (n == 0) { str[i++] = '0'; }
@@ -23,27 +23,27 @@ static void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
         }
     }
     str[i] = '\0';
-    draw_text(c, str, x, y, color);
+    push(); translate(x, y); fill(color); draw_text(str); pop();
 }
 
 void draw() {
-    clear(screen, rgb(15, 20, 25));
+    clear(rgb(15, 20, 25));
     
     counter++;
     
-    draw_text(screen, "Save System Test", 10, 10, WHITE);
-    draw_line(screen, 10, 25, 150, 25, rgb(50, 50, 60));
+    push(); translate(10, 10); fill(WHITE); draw_text("Save System Test"); pop();
+    push(); translate(10, 25); stroke(rgb(50, 50, 60)); draw_line(140, 0, 0, 0); pop();
     
-    draw_text(screen, "Counter:", 10, 50, GRAY);
-    draw_number(screen, counter, 80, 50, CYAN);
+    push(); translate(10, 50); fill(GRAY); draw_text("Counter:"); pop();
+    draw_number(counter, 80, 50, CYAN);
     
-    draw_text(screen, "[SPACE] to Save", 10, 80, WHITE);
+    push(); translate(10, 80); fill(WHITE); draw_text("[SPACE] to Save"); pop();
     
     // Status indicator
     int cx = 160, cy = 160;
     
     if (file_is_saving()) {
-        draw_text(screen, "Saving...", cx - 30, cy + 30, YELLOW);
+        push(); translate(cx - 30, cy + 30); fill(YELLOW); draw_text("Saving..."); pop();
         
         // Spinner
         float t = w_ticks * 0.01f;
@@ -53,18 +53,18 @@ void draw() {
             pixel_t col = lerp_color(rgb(40, 40, 0), YELLOW, alpha);
             int px = cx + (int)(cos(angle) * 20.0f);
             int py = cy + (int)(sin(angle) * 20.0f);
-            draw_circle(screen, px, py, 3, col);
+            push(); translate(px, py); scale(3, 3); fill(col); draw_circle(); pop();
         }
     } else {
         if (last_save_time > 0 && w_ticks - last_save_time < 2000) {
             // Green checkmark
-            draw_circle_outline(screen, cx, cy, 20, GREEN);
-            draw_line(screen, cx - 10, cy, cx - 3, cy + 8, GREEN);
-            draw_line(screen, cx - 3, cy + 8, cx + 12, cy - 10, GREEN);
+            push(); translate(cx, cy); scale(20, 20); stroke(GREEN); draw_circle(); pop();
+            push(); translate(cx - 10, cy); stroke(GREEN); draw_line(cx - 3 - (cx - 10), cy + 8 - (cy), 0, 0); pop();
+            push(); translate(cx - 3, cy + 8); stroke(GREEN); draw_line(cx + 12 - (cx - 3), cy - 10 - (cy + 8), 0, 0); pop();
             
-            draw_text(screen, "Saved successfully!", cx - 70, cy + 30, GREEN);
+            push(); translate(cx - 70, cy + 30); fill(GREEN); draw_text("Saved successfully!"); pop();
         } else {
-            draw_circle_outline(screen, cx, cy, 20, rgb(50, 50, 50));
+            push(); translate(cx, cy); scale(20, 20); stroke(rgb(50, 50, 50)); draw_circle(); pop();
         }
     }
 }

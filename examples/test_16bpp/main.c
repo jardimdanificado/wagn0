@@ -7,9 +7,20 @@ void preload() {
 }
 
 void draw() {
-    clear(screen, BLACK);
-
-    clear(screen, BLACK);
-    draw_text(screen, "16BPP MODE (RGB565)", 10, 10, WHITE);
-    if (img.pixels) draw_canvas(screen, img, (320 - img.width) / 2, (240 - img.height) / 2);
+    clear(BLACK);
+    
+    push();
+    translate(10, 10);
+    fill(WHITE);
+    draw_text("16BPP MODE (RGB565)");
+    pop();
+    
+    if (img.pixels) {
+        push();
+        translate((320 - img.width) / 2.0f, (240 - img.height) / 2.0f);
+        scale(img.width, img.height);
+        texture(&img);
+        draw_quad();
+        pop();
+    }
 }

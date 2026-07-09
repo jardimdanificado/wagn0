@@ -21,16 +21,16 @@ void draw() {
         float r_base = 60.0f + sin(w_ticks * 0.01f) * 20.0f;
         for (int i = 0; i < count; i++) {
             pixel_t col = lerp_color(CYAN, MAGENTA, (float)i / (float)(count > 1 ? count - 1 : 1));
-            draw_circle_outline(screen, 160, 100, (int)r_base + i * 15, col);
+            push(); translate(160, 100); scale((int)r_base + i * 15, (int)r_base + i * 15); stroke(col); draw_circle(); pop();
         }
     }
 
-    draw_text(screen, "Synth Piano Demo", 100, 20, WHITE);
+    push(); translate(100, 20); fill(WHITE); draw_text("Synth Piano Demo"); pop();
 
     char buf[32];
     buf[0] = 'A'; buf[1] = 'c'; buf[2] = 't'; buf[3] = 'i'; buf[4] = 'v'; buf[5] = 'e'; buf[6] = ':'; buf[7] = ' ';
     buf[8] = '0' + count; buf[9] = 0;
-    draw_text(screen, buf, 130, 40, GRAY);
+    push(); translate(130, 40); fill(GRAY); draw_text(buf); pop();
 
     // Keyboard UI
     const char* labels[] = {"A4", "C5", "E5", "G5", "Nse"};
@@ -44,11 +44,11 @@ void draw() {
         pixel_t fill = is_pressed ? rgb(100, 200, 100) : rgb(40, 40, 50);
         pixel_t outline = is_pressed ? WHITE : GRAY;
         
-        draw_rect(screen, kx, ky, 40, 60, fill);
-        draw_rect_outline(screen, kx, ky, 40, 60, outline);
+        push(); translate(kx, ky); scale(40, 60); fill(fill); draw_quad(); pop();
+        push(); translate(kx, ky); scale(40, 60); stroke(outline); draw_quad(); pop();
         
-        draw_text(screen, labels[i], kx + 10, ky + 10, outline);
-        draw_text(screen, keys[i], kx + 16, ky + 40, is_pressed ? BLACK : WHITE);
+        push(); translate(kx + 10, ky + 10); fill(outline); draw_text(labels[i]); pop();
+        push(); translate(kx + 16, ky + 40); fill(is_pressed ? BLACK : WHITE); draw_text(keys[i]); pop();
     }
 }
 

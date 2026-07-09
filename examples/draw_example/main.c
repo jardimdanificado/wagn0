@@ -25,7 +25,7 @@ void setup() {
     }
 }
 
-static void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
+static void draw_number(int n, int x, int y, pixel_t color) {
     char str[16];
     int i = 0;
     if (n == 0) { str[i++] = '0'; }
@@ -37,14 +37,23 @@ static void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
         }
     }
     str[i] = '\0';
-    draw_text(c, str, x, y, color);
+    push();
+    translate(x, y);
+    fill(color);
+    draw_text(str);
+    pop();
 }
 
 void draw() {
     // Background gradient
     for (int y = 0; y < 240; y += 4) {
         pixel_t col = lerp_color(rgb(10, 10, 30), rgb(30, 10, 40), (float)y / 240.0f);
-        draw_rect(screen, 0, y, 320, 4, col);
+        push();
+        translate(0, y);
+        scale(320, 4);
+        fill(col);
+        draw_quad();
+        pop();
     }
 
     if (sheet.pixels) {
@@ -54,17 +63,42 @@ void draw() {
             if (sprites[i].x <= 0 || sprites[i].x + sprites[i].w >= 320) sprites[i].vx *= -1;
             if (sprites[i].y <= 0 || sprites[i].y + sprites[i].h >= 240) sprites[i].vy *= -1;
             
+            push();
+            translate(sprites[i].x, sprites[i].y);
+            scale(sprite_w, sprite_h);
+            
             // Draw a tinted rectangle behind the sprite for flavor
-            draw_rect(screen, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h, sprites[i].tint);
-            draw_canvas_scaled(screen, sheet, (int)sprites[i].x, (int)sprites[i].y, sprite_w, sprite_h);
+            fill(sprites[i].tint);
+            draw_quad();
+            
+            // Draw sprite
+            texture(&sheet);
+            draw_quad();
+            
+            pop();
         }
     }
 
     // UI
-    draw_rect(screen, 5, 5, 70, 20, rgb(0, 0, 0));
-    draw_rect_outline(screen, 5, 5, 70, 20, GRAY);
-    draw_text(screen, "FPS:", 10, 10, GRAY);
-    draw_number(screen, wagn0.fps, 40, 10, WHITE);
+    push();
+    translate(5, 5);
+    scale(70, 20);
+    fill(rgb(0, 0, 0));
+    stroke(GRAY);
+    draw_quad();
+    pop();
+
+    push();
+    translate(10, 10);
+    fill(GRAY);
+    draw_text("FPS:");
+    pop();
     
-    draw_text(screen, "200 Bouncing Sprites", 90, 10, WHITE);
+    draw_number(wagn0.fps, 40, 10, WHITE);
+    
+    push();
+    translate(90, 10);
+    fill(WHITE);
+    draw_text("200 Bouncing Sprites");
+    pop();
 }

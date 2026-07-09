@@ -10,7 +10,7 @@ void setup() {
     set_fps(60);
 }
 
-void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
+void draw_number(int n, int x, int y, pixel_t color) {
     char str[16];
     int i = 0;
     if (n == 0) { str[i++] = '0'; }
@@ -22,11 +22,11 @@ void draw_number(Canvas c, int n, int x, int y, pixel_t color) {
         }
     }
     str[i] = '\0';
-    draw_text(c, str, x, y, color);
+    push(); translate(x, y); fill(color); draw_text(str); pop();
 }
 
 void draw() {
-    clear(screen, rgb(30, 30, 40));
+    clear(rgb(30, 30, 40));
     
     if (img.pixels) {
         int ix = (320 - img.width) / 2;
@@ -36,21 +36,21 @@ void draw() {
         float t = (sin(w_ticks * 0.005f) + 1.0f) * 0.5f;
         pixel_t border_col = lerp_color(CYAN, MAGENTA, t);
         
-        draw_rect_outline(screen, ix - 2, iy - 2, img.width + 4, img.height + 4, border_col);
-        draw_rect_outline(screen, ix - 1, iy - 1, img.width + 2, img.height + 2, border_col);
+        push(); translate(ix - 2, iy - 2); scale(img.width + 4, img.height + 4); stroke(border_col); draw_quad(); pop();
+        push(); translate(ix - 1, iy - 1); scale(img.width + 2, img.height + 2); stroke(border_col); draw_quad(); pop();
         
-        draw_canvas(screen, img, ix, iy);
+        push(); translate(ix, iy); scale(img.width, img.height); texture(&img); draw_quad(); pop();
         
         // Dimensions
-        draw_text(screen, "W:", 10, 220, GRAY);
-        draw_number(screen, img.width, 30, 220, WHITE);
+        push(); translate(10, 220); fill(GRAY); draw_text("W:"); pop();
+        draw_number(img.width, 30, 220, WHITE);
         
-        draw_text(screen, "H:", 70, 220, GRAY);
-        draw_number(screen, img.height, 90, 220, WHITE);
+        push(); translate(70, 220); fill(GRAY); draw_text("H:"); pop();
+        draw_number(img.height, 90, 220, WHITE);
     } else {
         // Red X
-        draw_line(screen, 100, 60, 220, 180, RED);
-        draw_line(screen, 220, 60, 100, 180, RED);
-        draw_text(screen, "FAILED TO LOAD test.png", 60, 200, RED);
+        push(); translate(100, 60); stroke(RED); draw_line(220 - (100), 180 - (60), 0, 0); pop();
+        push(); translate(220, 60); stroke(RED); draw_line(100 - (220), 180 - (60), 0, 0); pop();
+        push(); translate(60, 200); fill(RED); draw_text("FAILED TO LOAD test.png"); pop();
     }
 }

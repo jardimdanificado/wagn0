@@ -7,12 +7,23 @@ void preload() {
 }
 
 void draw() {
-    clear(screen, BLACK);
-    draw_text(screen, "24BPP MODE (RGB888)", 10, 10, WHITE);
+    clear(BLACK);
+    
+    push();
+    translate(10, 10);
+    fill(WHITE);
+    draw_text("24BPP MODE (RGB888)");
+    pop();
 
     // Mostra a imagem centrada
-    if (img.pixels)
-        draw_canvas(screen, img, (320 - img.width) / 2, (240 - img.height) / 2);
+    if (img.pixels) {
+        push();
+        translate((320 - img.width) / 2.0f, (240 - img.height) / 2.0f);
+        scale(img.width, img.height);
+        texture(&img);
+        draw_quad();
+        pop();
+    }
 
     // Barras de cor puras para verificar fidelidade RGB
     int bar_w = 320 / 6;
@@ -27,6 +38,11 @@ void draw() {
         0xFFFF00FF, // Magenta
     };
     for (int i = 0; i < 6; i++) {
-        draw_rect(screen, i * bar_w, bar_y, bar_w, bar_h, colors[i]);
+        push();
+        translate(i * bar_w, bar_y);
+        scale(bar_w, bar_h);
+        fill(colors[i]);
+        draw_quad();
+        pop();
     }
 }
