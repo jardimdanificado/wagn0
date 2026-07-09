@@ -63,7 +63,6 @@ draw_triangle3uv(screen, x1,y1, x2,y2, x3,y3,      // texture-mapped
 
 // Pixel access
 pixel_t c = pixel_at(canvas, x, y);                // read pixel
-pixel_set(canvas, x, y, color);                    // write pixel
 ```
 
 ### Text
@@ -78,10 +77,20 @@ int text_height(void);
 ### Images
 
 ```c
-Canvas img = img_load(data, size);          // decode PNG asset → Canvas
+// Async loading (recommended, use in preload callback)
+void preload() {
+    load_image(&img, "player.png");         // load from assets/
+}
+
+// Memory loading
+Canvas img = img_load(data, size);          // decode PNG buffer → Canvas
 Canvas img = img_create(data, w, h, bpp);   // create from raw pixels
+
+// Drawing
 draw_canvas(screen, img, x, y);             // with BPP conversion
 draw_canvas_scaled(screen, img, x, y, w, h); // scaled, with BPP conversion
+draw_canvas_ex(screen, img, x, y, use_color_key, color_key); // with color key transparency
+draw_canvas_scaled_ex(screen, img, x, y, w, h, use_color_key, color_key); // scaled, with color key
 ```
 
 Images loaded with `img_load()` or created with `img_create()` return a
@@ -100,6 +109,12 @@ int audio_is_playing(void);
 ### Audio (decoded files — WAV/MP3/OGG)
 
 ```c
+// Async loading (recommended, use in preload callback)
+void preload() {
+    load_audio(&snd, "jump.wav");           // load from assets/
+}
+
+// Memory decoding
 Wagn0Audio snd = wav_decode(data, size);    // or mp3_decode, ogg_decode
 audio_play(&snd);                           // start playback
 audio_stop(&snd);                           // stop playback
@@ -142,6 +157,8 @@ Vec2  vec2(x, y);  vec2_add(a, b);  // etc.
 ## User Callbacks
 
 ```c
+void preload(void);        // load assets here
+void setup(void);          // init after assets are loaded
 void draw(void);           // every frame
 void mouse_pressed(void);
 void mouse_released(void);

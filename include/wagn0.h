@@ -294,7 +294,6 @@ void draw_triangle(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3, pix
 
 // Pixel access
 pixel_t pixel_at(Canvas c, int x, int y);
-void pixel_set(Canvas c, int x, int y, pixel_t color);
 
 // Texture-mapped triangle (perspective-correct UV)
 void draw_triangle3uv(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3,
@@ -682,12 +681,6 @@ pixel_t pixel_at(Canvas c, int x, int y) {
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
                         (size_t)c.stride, c.bpp };
     return (pixel_t)olivec_get_pixel(oc, x, y);
-}
-
-void pixel_set(Canvas c, int x, int y, pixel_t color) {
-    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height,
-                        (size_t)c.stride, c.bpp };
-    olivec_set_pixel(oc, x, y, (uint32_t)color);
 }
 
 void draw_triangle3uv(Canvas c,
