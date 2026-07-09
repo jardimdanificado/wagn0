@@ -61,11 +61,23 @@ typedef uint32_t pixel_t;
 // ============================================
 
 static inline pixel_t rgb(uint8_t r, uint8_t g, uint8_t b) {
+#if WAGN0_CFG_BPP == 16
+    return (uint32_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+#elif WAGN0_CFG_BPP == 8
+    return (uint32_t)(((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6));
+#else
     return (uint32_t)((0xFF << 24) | ((b) << 16) | ((g) << 8) | (r));
+#endif
 }
 
 static inline pixel_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+#if WAGN0_CFG_BPP == 16
+    return (uint32_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+#elif WAGN0_CFG_BPP == 8
+    return (uint32_t)(((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6));
+#else
     return (uint32_t)(((a) << 24) | ((b) << 16) | ((g) << 8) | (r));
+#endif
 }
 
 // Predefined colors — always pixel_t
