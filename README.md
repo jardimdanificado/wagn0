@@ -6,8 +6,13 @@ High-level game development API for Wagnostic.
 #include "wagner.h"
 
 void draw() {
-    clear(screen, BLUE);
-    draw_rect(screen, 10, 10, 100, 80, RED);
+    clear(BLUE);
+    
+    push();
+    translate(10, 10);
+    fill(RED);
+    quad();
+    pop();
 }
 ```
 
@@ -32,46 +37,50 @@ Colors are always specified as RGBA8888 (`0xAABBGGRR`) and converted
 to the canvas format by the drawing functions:
 
 ```c
-draw_pixel(screen, 10, 10, rgb(255, 0, 0));    // red in any BPP
-draw_pixel(screen, 10, 10, 0xFFFF0000);          // same, raw ARGB
+fill(rgb(255, 0, 0));    // red in any BPP
+fill(0xFFFF0000);        // same, raw ARGB
 ```
 
-## API
+## Rendering (State-Machine API)
 
-### Canvas (screen buffer)
+wagner uses a state-machine rendering approach. Instead of passing properties (like coordinates, color, or the target canvas) directly into drawing functions, you configure the state machine, and the drawing functions simply rasterize the current state.
+
+### State Manipulation
 
 ```c
-Canvas screen;         // global canvas (wraps w_vram)
-Canvas c = canvas_sub(screen, x, y, w, h);  // sub-canvas (viewport, HUD)
-Canvas offscreen = canvas_create(w, h, bpp); // dynamically allocated canvas
+push();                                  // save current state (matrix, colors, texture)
+pop();                                   // restore previous state
+
+// Transformations
+translate(float x, float y);             // move origin
+scale(float sx, float sy);               // scale drawing
+rotate(float angle_radians);             // rotate around origin
+
+// Styling
+fill(pixel_t color);                     // set fill color
+no_fill(void);                           // disable filling
+stroke(pixel_t color);                   // set stroke color
+no_stroke(void);                         // disable stroking
+texture(Canvas* tex);                    // bind a texture to be mapped on primitives
 ```
 
 ### Primitives
 
 ```c
-clear(screen, color);                              // fill entire canvas
-draw_rect(screen, x, y, w, h, color);              // filled rectangle
-draw_rect_outline(screen, x, y, w, h, color);      // rectangle outline
-draw_circle(screen, cx, cy, r, color);             // filled circle
-draw_circle_outline(screen, cx, cy, r, color);     // circle outline
-draw_ellipse(screen, x, y, w, h, color);            // filled ellipse
-draw_line(screen, x1, y1, x2, y2, color);           // line
-draw_pixel(screen, x, y, color);                   // single pixel
-draw_triangle(screen, x1,y1, x2,y2, x3,y3, color); // filled triangle
-draw_triangle3uv(screen, x1,y1, x2,y2, x3,y3,      // texture-mapped
-    tx1,ty1, tx2,ty2, tx3,ty3, z1,z2,z3, tex);
+clear(pixel_t color);                    // fill entire canvas with color
 
-// Pixel access
-pixel_t c = pixel_at(canvas, x, y);                // read pixel
+quad(void);                              // 1x1 quad mapped by matrix
+circle(void);                            // circle mapped by matrix (can be textured)
+triangle(void);                          // triangle mapped by matrix
+line(float x1, float y1, float x2, float y2); // draw a line segment
+pixel(float x, float y);                 // draw a single pixel
 ```
 
 ### Text
 
 ```c
-draw_text(screen, "Hello", x, y, color);
-text_size(int);
-int text_width(const char*);
-int text_height(void);
+text(const char* text_str);              // draws text at current origin using fill color
+int text_width(const char* text_str);    // calculate string width (depends on matrix horizontal scale)
 ```
 
 ### Images
@@ -82,22 +91,16 @@ void preload() {
     load_image(&img, "player.png");         // load from assets/
 }
 
-// Memory loading
-Canvas img = img_load(data, size);          // decode PNG buffer → Canvas
-Canvas img = img_create(data, w, h, bpp);   // create from raw pixels
-
-// Drawing
-draw_canvas(screen, img, x, y);             // with BPP conversion
-draw_canvas_scaled(screen, img, x, y, w, h); // scaled, with BPP conversion
-draw_canvas_ex(screen, img, x, y, use_color_key, color_key); // with color key transparency
-draw_canvas_scaled_ex(screen, img, x, y, w, h, use_color_key, color_key); // scaled, with color key
+// Drawing images using state machine
+push();
+translate(x, y);
+scale(img.width, img.height);
+texture(&img);
+quad(); // Draws the image, correctly mapping UVs and converting BPP!
+pop();
 ```
 
-Images loaded with `img_load()` or created with `img_create()` return a
-`Canvas` with `stride = width`. They can be used anywhere a Canvas is
-expected — sub-canvases, blitting, or direct pixel access.
-
-### Audio (synth)
+## Audio (synth)
 
 ```c
 play_tone(440.0f, 1.0f, 0.5f);   // sine wave
@@ -106,7 +109,7 @@ stop_all_sounds();
 int audio_is_playing(void);
 ```
 
-### Audio (decoded files — WAV/MP3/OGG)
+## Audio (decoded files — WAV/MP3/OGG)
 
 ```c
 // Async loading (recommended, use in preload callback)
@@ -122,37 +125,36 @@ audio_is_playing();                         // still playing?
 __attribute__((weak)) void fill_audio(void); // hook to stream custom PCM
 ```
 
-### Framerate
+## Framerate
 
 ```c
 set_fps(30);                    // request 30 FPS from the host
-// wagn0.fps computed automatically every second
-// wagn0.delta_time reflects actual frame time
+// wagner.fps computed automatically every second
+// wagner.delta_time reflects actual frame time
 ```
 
-### Math
+## Math
 
 ```c
-float map(v, s1, s2, t1, t2);  float constrain(v, min, max);
+float map(v, s1, s2, t1, t2);   float constrain(v, min, max);
 float lerp(a, b, t);            pixel_t lerp_color(a, b, t);
 float dist(x1, y1, x2, y2);     float dist_sq(x1, y1, x2, y2);
 float sin(x);  float cos(x);    float sqrt(x);
 void  random_seed(uint32_t);
 int   random_int(min, max);     int random(min, max);
-Vec2  vec2(x, y);  vec2_add(a, b);  // etc.
 ```
 
-### Status
+## Status
 
 | Expression | Value |
 |---|---|
-| `wagn0.mouse.x` / `.y` | Mouse position |
-| `wagn0.mouse_down` | Mouse held |
-| `wagn0.mouse_pressed` / `.mouse_released` | Edge detection |
-| `wagn0.keys[scancode]` | Keyboard state (USB HID) |
-| `wagn0.delta_time` | Seconds since last frame |
-| `wagn0.frame_count` | Total frames rendered |
-| `wagn0.fps` | Actual frames per second (computed) |
+| `wagner.mouse.x` / `.y` | Mouse position |
+| `wagner.mouse_down` | Mouse held |
+| `wagner.mouse_pressed` / `.mouse_released` | Edge detection |
+| `wagner.keys[scancode]` | Keyboard state (USB HID) |
+| `wagner.delta_time` | Seconds since last frame |
+| `wagner.frame_count` | Total frames rendered |
+| `wagner.fps` | Actual frames per second (computed) |
 
 ## User Callbacks
 
@@ -178,17 +180,9 @@ size_t size;
 uint8_t* png_data = file_load("assets/icon.png", &size);
 if (png_data) {
     Canvas icon = img_load(png_data, size);
-    draw_canvas(screen, icon, 10, 10);
-}
-
-uint8_t* wav_data = file_load("assets/jump.wav", &size);
-if (wav_data) {
-    WagnerAudio sfx = wav_decode(wav_data, size);
+    // Use with texture() in state machine
 }
 ```
-
-Decoders (lodepng, dr_wav, etc.) are auto-linked by the build system when
-matching file types are found in `assets/`.
 
 Saving is completely transparent. Write to any path inside the `.tar` and it will be appended permanently (append-only inplace save):
 

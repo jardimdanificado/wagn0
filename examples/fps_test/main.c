@@ -25,7 +25,7 @@ static void draw_number(int n, int x, int y, pixel_t color) {
     push();
     translate(x, y);
     fill(color);
-    draw_text(str);
+    text(str);
     pop();
 }
 
@@ -33,7 +33,7 @@ static void draw_str(const char* str, int x, int y, pixel_t color) {
     push();
     translate(x, y);
     fill(color);
-    draw_text(str);
+    text(str);
     pop();
 }
 
@@ -55,7 +55,7 @@ void draw() {
     translate(cx, cy);
     scale(r, r);
     stroke(CYAN);
-    draw_circle();
+    circle();
     pop();
     
     for (int i = 0; i < 8; i++) {
@@ -65,7 +65,7 @@ void draw() {
         push();
         translate(cx, cy);
         stroke(lerp_color(BLUE, CYAN, (float)i/7.0f));
-        draw_line(px - cx, py - cy, 0, 0); // Wait, old draw_line took x1,y1,x2,y2. In state machine draw_line takes x1,y1,x2,y2, but transformed. Wait, my draw_line definition is void draw_line(float x1, float y1, float x2, float y2);
+        line(px - cx, py - cy, 0, 0); // Wait, old line took x1,y1,x2,y2. In state machine line takes x1,y1,x2,y2, but transformed. Wait, my line definition is void line(float x1, float y1, float x2, float y2);
         pop();
     }
     
@@ -74,7 +74,7 @@ void draw() {
     translate(10, 40);
     scale(140, 160);
     stroke(rgb(60, 60, 60));
-    draw_quad();
+    quad();
     pop();
     
     draw_str("FPS TEST", 45, 50, WHITE);
@@ -82,7 +82,7 @@ void draw() {
     push();
     translate(0, 0);
     stroke(rgb(60, 60, 60));
-    draw_line(10, 70, 150, 70);
+    line(10, 70, 150, 70);
     pop();
     
     draw_str("Target:", 20, 90, GRAY);

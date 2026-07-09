@@ -16,11 +16,11 @@ void draw() {
     push();
     translate(10, 10);
     fill(WHITE);
-    draw_text("Transform and Texture Demo");
+    text("Transform and Texture Demo");
     pop();
     
     if (!img.pixels) {
-        push(); translate(10, 30); fill(RED); draw_text("Loading image..."); pop();
+        push(); translate(10, 30); fill(RED); text("Loading image..."); pop();
         return;
     }
     
@@ -30,7 +30,7 @@ void draw() {
     rotate(w_ticks * 0.002f);
     scale(60, 60);
     texture(&img);
-    draw_quad(); // Draws a textured quad rotated around its top-left, since translate is top-left in default state machine unless we translate to center first
+    quad(); // Draws a textured quad rotated around its top-left, since translate is top-left in default state machine unless we translate to center first
     pop();
     
     // Rotating textured quad around its center
@@ -40,7 +40,7 @@ void draw() {
     translate(-30, -30); // Offset half the size to center it
     scale(60, 60);
     texture(&img);
-    draw_quad();
+    quad();
     pop();
     
     // Textured circle (using texture mapped to a circle)
@@ -48,7 +48,7 @@ void draw() {
     translate(80, 200);
     scale(40, 40);
     texture(&img); // A circle will use the texture bound to the state!
-    draw_circle();
+    circle();
     pop();
     
     // Scaled, tinted and rotated quad
@@ -59,12 +59,12 @@ void draw() {
     scale(80, 40);
     fill(rgb(255, 100, 100)); // Tint color (mixes with texture in olivec)
     texture(&img);
-    draw_quad();
+    quad();
     pop();
     
     // Text showing labels
-    push(); translate(80 - 30, 140); fill(GRAY); draw_text("Rotated Quad"); pop();
-    push(); translate(240 - 40, 140); fill(GRAY); draw_text("Centered Rotated"); pop();
-    push(); translate(80 - 40, 230); fill(GRAY); draw_text("Textured Circle"); pop();
-    push(); translate(240 - 40, 230); fill(GRAY); draw_text("Tinted & Scaled"); pop();
+    push(); translate(80 - 30, 140); fill(GRAY); text("Rotated Quad"); pop();
+    push(); translate(240 - 40, 140); fill(GRAY); text("Centered Rotated"); pop();
+    push(); translate(80 - 40, 230); fill(GRAY); text("Textured Circle"); pop();
+    push(); translate(240 - 40, 230); fill(GRAY); text("Tinted & Scaled"); pop();
 }

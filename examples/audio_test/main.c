@@ -11,9 +11,9 @@ void draw() {
     int playing = audio_is_playing();
     pixel_t status_color = playing ? GREEN : RED;
     
-    push(); translate(10, 10); fill(WHITE); draw_text("Audio Tone Test"); pop();
-    push(); translate(10, 30); fill(status_color); draw_text(playing ? "PLAYING 440Hz" : "STOPPED"); pop();
-    push(); translate(10, 50); fill(GRAY); draw_text("SPACE = restart tone"); pop();
+    push(); translate(10, 10); fill(WHITE); text("Audio Tone Test"); pop();
+    push(); translate(10, 30); fill(status_color); text(playing ? "PLAYING 440Hz" : "STOPPED"); pop();
+    push(); translate(10, 50); fill(GRAY); text("SPACE = restart tone"); pop();
     
     // Draw waveform
     int wave_y = 140;
@@ -23,7 +23,7 @@ void draw() {
     translate(10, wave_y - wave_h - 10);
     scale(300, wave_h * 2 + 20);
     stroke(rgb(40, 40, 50));
-    draw_quad();
+    quad();
     pop();
     
     if (playing) {
@@ -34,7 +34,7 @@ void draw() {
         for (int x = 11; x < 310; x++) {
             float phase = scroll + (x * 0.1f);
             int y = wave_y + (int)(sin(phase) * wave_h);
-            push(); translate(prev_x, prev_y); stroke(CYAN); draw_line(x - (prev_x), y - (prev_y), 0, 0); pop();
+            push(); translate(prev_x, prev_y); stroke(CYAN); line(x - (prev_x), y - (prev_y), 0, 0); pop();
             prev_x = x;
             prev_y = y;
         }
@@ -42,7 +42,7 @@ void draw() {
         push();
         translate(10, wave_y);
         stroke(rgb(80, 80, 80));
-        draw_line(300, 0, 0, 0);
+        line(300, 0, 0, 0);
         pop();
     }
 }

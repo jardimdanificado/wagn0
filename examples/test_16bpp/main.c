@@ -12,7 +12,7 @@ void draw() {
     push();
     translate(10, 10);
     fill(WHITE);
-    draw_text("16BPP MODE (RGB565)");
+    text("16BPP MODE (RGB565)");
     pop();
     
     if (img.pixels) {
@@ -20,7 +20,7 @@ void draw() {
         translate((320 - img.width) / 2.0f, (240 - img.height) / 2.0f);
         scale(img.width, img.height);
         texture(&img);
-        draw_quad();
+        quad();
         pop();
     }
 }
