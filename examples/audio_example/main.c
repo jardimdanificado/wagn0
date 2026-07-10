@@ -13,7 +13,7 @@ void setup() {
 }
 
 void draw() {
-    clear(screen, rgb(20, 20, 30));
+    push(); fill(rgb(20, 20, 30)); clear(screen); pop();
 
     // Sound wave visualization
     int count = active_count();
@@ -21,16 +21,16 @@ void draw() {
         float r_base = 60.0f + sin(w_ticks * 0.01f) * 20.0f;
         for (int i = 0; i < count; i++) {
             pixel_t col = lerp_color(CYAN, MAGENTA, (float)i / (float)(count > 1 ? count - 1 : 1));
-            push(); translate(160, 100); scale((int)r_base + i * 15, (int)r_base + i * 15); stroke(col); circle(); pop();
+            push(); translate(160, 100); scale((int)r_base + i * 15, (int)r_base + i * 15); stroke(col); circle(screen); pop();
         }
     }
 
-    push(); translate(100, 20); fill(WHITE); text("Synth Piano Demo"); pop();
+    push(); translate(100, 20); fill(WHITE); text(screen, "Synth Piano Demo"); pop();
 
     char buf[32];
     buf[0] = 'A'; buf[1] = 'c'; buf[2] = 't'; buf[3] = 'i'; buf[4] = 'v'; buf[5] = 'e'; buf[6] = ':'; buf[7] = ' ';
     buf[8] = '0' + count; buf[9] = 0;
-    push(); translate(130, 40); fill(GRAY); text(buf); pop();
+    push(); translate(130, 40); fill(GRAY); text(screen, buf); pop();
 
     // Keyboard UI
     const char* labels[] = {"A4", "C5", "E5", "G5", "Nse"};
@@ -44,11 +44,11 @@ void draw() {
         pixel_t fill = is_pressed ? rgb(100, 200, 100) : rgb(40, 40, 50);
         pixel_t outline = is_pressed ? WHITE : GRAY;
         
-        push(); translate(kx, ky); scale(40, 60); fill(fill); rect(); pop();
-        push(); translate(kx, ky); scale(40, 60); stroke(outline); rect(); pop();
+        push(); translate(kx, ky); scale(40, 60); fill(fill); rect(screen); pop();
+        push(); translate(kx, ky); scale(40, 60); stroke(outline); rect(screen); pop();
         
-        push(); translate(kx + 10, ky + 10); fill(outline); text(labels[i]); pop();
-        push(); translate(kx + 16, ky + 40); fill(is_pressed ? BLACK : WHITE); text(keys[i]); pop();
+        push(); translate(kx + 10, ky + 10); fill(outline); text(screen, labels[i]); pop();
+        push(); translate(kx + 16, ky + 40); fill(is_pressed ? BLACK : WHITE); text(screen, keys[i]); pop();
     }
 }
 

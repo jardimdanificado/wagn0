@@ -7,12 +7,12 @@ void preload() {
 }
 
 void draw() {
-    clear(BLACK);
+    push(); fill(BLACK); clear(screen); pop();
     
     push();
     translate(10, 10);
     fill(WHITE);
-    text("24BPP MODE (RGB888)");
+    text(screen, "24BPP MODE (RGB888)");
     pop();
 
     // Mostra a imagem centrada
@@ -21,7 +21,7 @@ void draw() {
         translate((320 - img.width) / 2.0f, (240 - img.height) / 2.0f);
         scale(img.width, img.height);
         texture(&img);
-        rect();
+        rect(screen);
         pop();
     }
 
@@ -42,7 +42,7 @@ void draw() {
         translate(i * bar_w, bar_y);
         scale(bar_w, bar_h);
         fill(colors[i]);
-        rect();
+        rect(screen);
         pop();
     }
 }

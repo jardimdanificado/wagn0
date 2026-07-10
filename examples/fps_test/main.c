@@ -25,7 +25,7 @@ static void draw_number(int n, int x, int y, pixel_t color) {
     push();
     translate(x, y);
     fill(color);
-    text(str);
+    text(screen, str);
     pop();
 }
 
@@ -33,12 +33,12 @@ static void draw_str(const char* str, int x, int y, pixel_t color) {
     push();
     translate(x, y);
     fill(color);
-    text(str);
+    text(screen, str);
     pop();
 }
 
 void draw() {
-    clear(rgb(15, 15, 15));
+    push(); fill(rgb(15, 15, 15)); clear(screen); pop();
     
     uint32_t now = w_ticks;
     if (now - last_switch >= 2000) {
@@ -55,7 +55,7 @@ void draw() {
     translate(cx, cy);
     scale(r, r);
     stroke(CYAN);
-    circle();
+    circle(screen);
     pop();
     
     for (int i = 0; i < 8; i++) {
@@ -65,7 +65,7 @@ void draw() {
         push();
         translate(cx, cy);
         stroke(lerp_color(BLUE, CYAN, (float)i/7.0f));
-        line(px - cx, py - cy, 0, 0); // Wait, old line took x1,y1,x2,y2. In state machine line takes x1,y1,x2,y2, but transformed. Wait, my line definition is void line(float x1, float y1, float x2, float y2);
+        line(screen, px - cx, py - cy, 0, 0); // Wait, old line took x1,y1,x2,y2. In state machine line takes x1,y1,x2,y2, but transformed. Wait, my line definition is void line(screen, float x1, float y1, float x2, float y2);
         pop();
     }
     
@@ -74,7 +74,7 @@ void draw() {
     translate(10, 40);
     scale(140, 160);
     stroke(rgb(60, 60, 60));
-    rect();
+    rect(screen);
     pop();
     
     draw_str("FPS TEST", 45, 50, WHITE);
@@ -82,7 +82,7 @@ void draw() {
     push();
     translate(0, 0);
     stroke(rgb(60, 60, 60));
-    line(10, 70, 150, 70);
+    line(screen, 10, 70, 150, 70);
     pop();
     
     draw_str("Target:", 20, 90, GRAY);

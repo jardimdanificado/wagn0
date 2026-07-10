@@ -40,7 +40,7 @@ static void draw_number(int n, int x, int y, pixel_t color) {
     push();
     translate(x, y);
     fill(color);
-    text(str);
+    text(screen, str);
     pop();
 }
 
@@ -52,7 +52,7 @@ void draw() {
         translate(0, y);
         scale(320, 4);
         fill(col);
-        rect();
+        rect(screen);
         pop();
     }
 
@@ -69,11 +69,11 @@ void draw() {
             
             // Draw a tinted rectangle behind the sprite for flavor
             fill(sprites[i].tint);
-            rect();
+            rect(screen);
             
             // Draw sprite
             texture(&sheet);
-            rect();
+            rect(screen);
             
             pop();
         }
@@ -85,13 +85,13 @@ void draw() {
     scale(70, 20);
     fill(rgb(0, 0, 0));
     stroke(GRAY);
-    rect();
+    rect(screen);
     pop();
 
     push();
     translate(10, 10);
     fill(GRAY);
-    text("FPS:");
+    text(screen, "FPS:");
     pop();
     
     draw_number(wagner.fps, 40, 10, WHITE);
@@ -99,6 +99,6 @@ void draw() {
     push();
     translate(90, 10);
     fill(WHITE);
-    text("200 Bouncing Sprites");
+    text(screen, "200 Bouncing Sprites");
     pop();
 }

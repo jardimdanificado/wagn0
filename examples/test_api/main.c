@@ -34,27 +34,27 @@ static float anim = 0.0f;
 
 // ── Seção 0: circle / circle_outline ────────────────────────────────
 static void draw_section0(void) {
-    push(); translate(4, 4); fill(WHITE); text("0: circle / outline"); pop();
+    push(); translate(4, 4); fill(WHITE); text(screen, "0: circle / outline"); pop();
 
     // Círculo cheio animado
     int cx = 80, cy = 120;
     int r  = 40 + (int)(sin(anim) * 20.0f);
-    push(); translate(cx, cy); scale(r, r); fill(rgb(80, 180, 255)); circle(); pop();
-    push(); translate(cx, cy); scale(r + 4, r + 4); stroke(WHITE); circle(); pop();
+    push(); translate(cx, cy); scale(r, r); fill(rgb(80, 180, 255)); circle(screen); pop();
+    push(); translate(cx, cy); scale(r + 4, r + 4); stroke(WHITE); circle(screen); pop();
 
     // Círculos concêntricos de cores interpoladas
     for (int i = 1; i <= 6; i++) {
         float t = (float)i / 6.0f;
         pixel_t col = lerp_color(rgb(255, 60, 60), rgb(60, 255, 120), t);
-        push(); translate(240, 120); scale(i * 14, i * 14); stroke(col); circle(); pop();
+        push(); translate(240, 120); scale(i * 14, i * 14); stroke(col); circle(screen); pop();
     }
 
-    push(); translate(140, 220); fill(GRAY); text("filled + outline"); pop();
+    push(); translate(140, 220); fill(GRAY); text(screen, "filled + outline"); pop();
 }
 
 // ── Seção 1: draw_rect_outline ────────────────────────────────────────────────
 static void draw_section1(void) {
-    push(); translate(4, 4); fill(WHITE); text("1: draw_rect_outline"); pop();
+    push(); translate(4, 4); fill(WHITE); text(screen, "1: draw_rect_outline"); pop();
 
     // Grade de retângulos com borda colorida
     for (int row = 0; row < 3; row++) {
@@ -63,41 +63,39 @@ static void draw_section1(void) {
             float t = ((float)(row * 4 + col)) / 11.0f;
             pixel_t fill_color = lerp_color(rgb(30, 80, 200), rgb(200, 60, 30), t);
             pixel_t outline = lerp_color(WHITE, YELLOW, t);
-            push(); translate(x, y); scale(60, 50); fill(fill_color); rect(); pop();
-            push(); translate(x, y); scale(60, 50); stroke(outline); rect(); pop();
+            push(); translate(x, y); scale(60, 50); fill(fill_color); rect(screen); pop();
+            push(); translate(x, y); scale(60, 50); stroke(outline); rect(screen); pop();
         }
     }
 
-    push(); translate(60, 225); fill(GRAY); text("lerp_color nas bordas"); pop();
+    push(); translate(60, 225); fill(GRAY); text(screen, "lerp_color nas bordas"); pop();
 }
 
 // ── Seção 2: canvas_create (offscreen buffer) ────────────────────────────────
 static void draw_section2(void) {
-    push(); translate(4, 4); fill(WHITE); text("2: canvas_create offscreen"); pop();
+    push(); translate(4, 4); fill(WHITE); text(screen, "2: canvas_create offscreen"); pop();
 
     if (!offscreen.pixels) {
-        push(); translate(40, 120); fill(RED); text("offscreen nao alocado!"); pop();
+        push(); translate(40, 120); fill(RED); text(screen, "offscreen nao alocado!"); pop();
         return;
     }
 
     // Redesenha o offscreen a cada frame com um padrão dinâmico
-    render_target(&offscreen);
-    clear(rgb(10, 10, 30));
+    push(); fill(rgb(10, 10, 30)); clear(offscreen); pop();
     for (int i = 0; i < 8; i++) {
         float angle = anim + i * (TWO_PI / 8.0f);
         int ox = 64 + (int)(cos(angle) * 50.0f);
         int oy = 64 + (int)(sin(angle) * 50.0f);
         pixel_t col = lerp_color(CYAN, MAGENTA, (float)i / 8.0f);
-        push(); translate(ox, oy); scale(12, 12); fill(col); circle(); pop();
+        push(); translate(ox, oy); scale(12, 12); fill(col); circle(offscreen); pop();
     }
-    push(); translate(0, 0); scale(offscreen.width, offscreen.height); stroke(WHITE); rect(); pop();
-    push(); translate(10, 55); fill(WHITE); text("offscreen"); pop();
+    push(); translate(0, 0); scale(offscreen.width, offscreen.height); stroke(WHITE); rect(offscreen); pop();
+    push(); translate(10, 55); fill(WHITE); text(offscreen, "offscreen"); pop();
 
-    render_target(NULL);
     // Cola o offscreen centrado na tela
     int dx = (screen.width  - offscreen.width)  / 2;
     int dy = (screen.height - offscreen.height) / 2;
-    push(); translate(dx, dy); scale(offscreen.width, offscreen.height); texture(&offscreen); rect(); pop();
+    push(); translate(dx, dy); scale(offscreen.width, offscreen.height); texture(&offscreen); rect(screen); pop();
 
     // Mostra dimensões
     char info[64];
@@ -112,17 +110,17 @@ static void draw_section2(void) {
     info[9]  = '0' + (h /  10) % 10;
     info[10] = '0' + (h      ) % 10;
     info[11] = '\0';
-    push(); translate(110, 210); fill(GRAY); text(info); pop();
+    push(); translate(110, 210); fill(GRAY); text(screen, info); pop();
 }
 
 // ── Seção 3: dist / dist_sq / text_height / random_seed ─────────────────────
 static void draw_section3(void) {
-    push(); translate(4, 4); fill(WHITE); text("3: dist / text_height / rng"); pop();
+    push(); translate(4, 4); fill(WHITE); text(screen, "3: dist / text_height / rng"); pop();
 
     // Mostra text_height
     int th = text_height();
-    push(); translate(4, 22); fill(CYAN); text("text_height()=6"); pop();
-    push(); translate(3, 21); scale(text_width("text_height()=6"), th); stroke(CYAN); rect(); pop();
+    push(); translate(4, 22); fill(CYAN); text(screen, "text_height()=6"); pop();
+    push(); translate(3, 21); scale(text_width("text_height()=6"), th); stroke(CYAN); rect(screen); pop();
 
     // dist do mouse ao centro
     float cx = screen.width  / 2.0f;
@@ -130,57 +128,57 @@ static void draw_section3(void) {
     float d  = dist(wagner.mouse.x, wagner.mouse.y, cx, cy);
     float dsq = dist_sq(wagner.mouse.x, wagner.mouse.y, cx, cy);
 
-    push(); translate((int)cx, (int)cy); scale((int)d, (int)d); stroke(YELLOW); circle(); pop();
-    push(); translate((int)wagner.mouse.x, (int)wagner.mouse.y); scale(4, 4); fill(RED); circle(); pop();
+    push(); translate((int)cx, (int)cy); scale((int)d, (int)d); stroke(YELLOW); circle(screen); pop();
+    push(); translate((int)wagner.mouse.x, (int)wagner.mouse.y); scale(4, 4); fill(RED); circle(screen); pop();
 
     // Imprime valores numéricos simples (sem sprintf)
-    push(); translate(4, 40); fill(WHITE); text("dist  mouse->centro:"); pop();
+    push(); translate(4, 40); fill(WHITE); text(screen, "dist  mouse->centro:"); pop();
     // desenha barra proporcional
     int bar = (int)(d);
     if (bar > 300) bar = 300;
-    push(); translate(4, 52); scale(bar, 8); fill(lerp_color(GREEN, RED, d / 200.0f)); rect(); pop();
+    push(); translate(4, 52); scale(bar, 8); fill(lerp_color(GREEN, RED, d / 200.0f)); rect(screen); pop();
 
-    push(); translate(4, 68); fill(GRAY); text("dist_sq > dist:ok"); pop();
+    push(); translate(4, 68); fill(GRAY); text(screen, "dist_sq > dist:ok"); pop();
 
     // random_seed demo: gera 20 pontos com seed fixa
-    push(); translate(4, 90); fill(WHITE); text("rng seed=42:"); pop();
+    push(); translate(4, 90); fill(WHITE); text(screen, "rng seed=42:"); pop();
     random_seed(42);
     for (int i = 0; i < 20; i++) {
         int rx = random_int(10, 310);
         int ry = random_int(100, 200);
         pixel_t rc = lerp_color(BLUE, ORANGE, (float)i / 20.0f);
-        push(); translate(rx, ry); scale(4, 4); fill(rc); circle(); pop();
+        push(); translate(rx, ry); scale(4, 4); fill(rc); circle(screen); pop();
     }
 
-    push(); translate(4, 210); fill(GRAY); text("[r] re-seed com ticks"); pop();
+    push(); translate(4, 210); fill(GRAY); text(screen, "[r] re-seed com ticks"); pop();
 
     (void)dsq;
 }
 
 // ── Seção 4: audio_play / audio_stop ─────────────────────────────────────────
 static void draw_section4(void) {
-    push(); translate(4, 4); fill(WHITE); text("4: audio_play / audio_stop"); pop();
+    push(); translate(4, 4); fill(WHITE); text(screen, "4: audio_play / audio_stop"); pop();
 
     // Status do beep
     int playing = audio_is_playing();
     pixel_t status_col = playing ? GREEN : GRAY;
-    push(); translate(160, 90); scale(40, 40); fill(playing ? rgb(30, 120, 30) : rgb(40, 40, 40)); circle(); pop();
-    push(); translate(160, 90); scale(40, 40); stroke(status_col); circle(); pop();
-    push(); translate(136, 86); fill(status_col); text(playing ? "tocando" : "parado"); pop();
+    push(); translate(160, 90); scale(40, 40); fill(playing ? rgb(30, 120, 30) : rgb(40, 40, 40)); circle(screen); pop();
+    push(); translate(160, 90); scale(40, 40); stroke(status_col); circle(screen); pop();
+    push(); translate(136, 86); fill(status_col); text(screen, playing ? "tocando" : "parado"); pop();
 
     // Instruções
-    push(); translate(60, 150); scale(80, 24); stroke(WHITE); rect(); pop();
-    push(); translate(72, 157); fill(WHITE); text("[space]"); pop();
-    push(); translate(78, 166); fill(GRAY); text("tocar"); pop();
+    push(); translate(60, 150); scale(80, 24); stroke(WHITE); rect(screen); pop();
+    push(); translate(72, 157); fill(WHITE); text(screen, "[space]"); pop();
+    push(); translate(78, 166); fill(GRAY); text(screen, "tocar"); pop();
 
-    push(); translate(180, 150); scale(80, 24); stroke(WHITE); rect(); pop();
-    push(); translate(202, 157); fill(WHITE); text("[s]"); pop();
-    push(); translate(198, 166); fill(GRAY); text("parar"); pop();
+    push(); translate(180, 150); scale(80, 24); stroke(WHITE); rect(screen); pop();
+    push(); translate(202, 157); fill(WHITE); text(screen, "[s]"); pop();
+    push(); translate(198, 166); fill(GRAY); text(screen, "parar"); pop();
 
     // Carregamento
     if (!beep.samples) {
-        push(); translate(60, 195); scale(200, 14); stroke(RED); rect(); pop();
-        push(); translate(64, 198); fill(RED); text("beep.wav nao carregado"); pop();
+        push(); translate(60, 195); scale(200, 14); stroke(RED); rect(screen); pop();
+        push(); translate(64, 198); fill(RED); text(screen, "beep.wav nao carregado"); pop();
     }
 }
 
@@ -201,7 +199,7 @@ void draw(void) {
     anim += wagner.delta_time * 2.0f;
 
     // ── HUD: barra de navegação ──
-    clear(rgb(10, 10, 20));
+    push(); fill(rgb(10, 10, 20)); clear(screen); pop();
 
     // Título de cada seção
     switch (section) {
@@ -213,12 +211,12 @@ void draw(void) {
     }
 
     // ── Rodapé de navegação ──
-    push(); translate(0, 232); scale(320, 8); fill(rgb(20, 20, 40)); rect(); pop();
+    push(); translate(0, 232); scale(320, 8); fill(rgb(20, 20, 40)); rect(screen); pop();
     for (int i = 0; i < NUM_SECTIONS; i++) {
         pixel_t dot = (i == section) ? WHITE : rgb(80, 80, 100);
-        push(); translate(140 + i * 10, 236); scale(2, 2); fill(dot); circle(); pop();
+        push(); translate(140 + i * 10, 236); scale(2, 2); fill(dot); circle(screen); pop();
     }
-    push(); translate(4, 233); fill(rgb(60, 60, 80)); text("[up][dn]"); pop();
+    push(); translate(4, 233); fill(rgb(60, 60, 80)); text(screen, "[up][dn]"); pop();
 }
 
 void key_pressed(int key) {

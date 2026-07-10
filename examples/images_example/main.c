@@ -29,7 +29,7 @@ static void draw_number(int n, int x, int y, pixel_t color) {
     push();
     translate(x, y);
     fill(color);
-    text(str);
+    text(screen, str);
     pop();
 }
 
@@ -37,7 +37,7 @@ static void draw_str(const char* str, int x, int y, pixel_t color) {
     push();
     translate(x, y);
     fill(color);
-    text(str);
+    text(screen, str);
     pop();
 }
 
@@ -63,7 +63,7 @@ void draw() {
             translate(x, y);
             scale(20, 20);
             fill(col);
-            rect();
+            rect(screen);
             pop();
         }
     }
@@ -80,7 +80,7 @@ void draw() {
         translate(cx, cy);
         scale(r, r);
         stroke(rgb(100, 200, 255));
-        circle();
+        circle(screen);
         pop();
         
         push();
@@ -88,7 +88,7 @@ void draw() {
         scale(scale_w, scale_h);
         texture(&img);
         stroke(YELLOW); // Outline
-        rect();
+        rect(screen);
         pop();
     }
 
@@ -98,7 +98,7 @@ void draw() {
     scale(100, 70);
     fill(rgb(0, 0, 0));
     stroke(GRAY);
-    rect();
+    rect(screen);
     pop();
     
     draw_str("POS X:", 215, 15, GRAY); draw_number(pos_x, 260, 15, WHITE);
