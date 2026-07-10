@@ -23,7 +23,7 @@ void draw() {
     translate(10, wave_y - wave_h - 10);
     scale(300, wave_h * 2 + 20);
     stroke(rgb(40, 40, 50));
-    quad();
+    rect();
     pop();
     
     if (playing) {

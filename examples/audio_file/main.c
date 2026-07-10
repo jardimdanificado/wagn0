@@ -45,7 +45,7 @@ void draw() {
     }
     
     // Keybinds panel
-    push(); translate(60, 180); scale(200, 40); stroke(rgb(60, 60, 80)); quad(); pop();
+    push(); translate(60, 180); scale(200, 40); stroke(rgb(60, 60, 80)); rect(); pop();
     push(); translate(70, 185); fill(WHITE); text("[SPACE] Play/Restart"); pop();
     push(); translate(70, 205); fill(WHITE); text("[S] Stop"); pop();
     

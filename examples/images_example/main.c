@@ -63,7 +63,7 @@ void draw() {
             translate(x, y);
             scale(20, 20);
             fill(col);
-            quad();
+            rect();
             pop();
         }
     }
@@ -88,7 +88,7 @@ void draw() {
         scale(scale_w, scale_h);
         texture(&img);
         stroke(YELLOW); // Outline
-        quad();
+        rect();
         pop();
     }
 
@@ -98,7 +98,7 @@ void draw() {
     scale(100, 70);
     fill(rgb(0, 0, 0));
     stroke(GRAY);
-    quad();
+    rect();
     pop();
     
     draw_str("POS X:", 215, 15, GRAY); draw_number(pos_x, 260, 15, WHITE);

@@ -74,7 +74,7 @@ void draw() {
     translate(10, 40);
     scale(140, 160);
     stroke(rgb(60, 60, 60));
-    quad();
+    rect();
     pop();
     
     draw_str("FPS TEST", 45, 50, WHITE);

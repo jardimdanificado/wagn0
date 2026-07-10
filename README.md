@@ -11,7 +11,7 @@ void draw() {
     push();
     translate(10, 10);
     fill(RED);
-    quad();
+    rect();
     pop();
 }
 ```
@@ -69,7 +69,7 @@ texture(Canvas* tex);                    // bind a texture to be mapped on primi
 ```c
 clear(pixel_t color);                    // fill entire canvas with color
 
-quad(void);                              // 1x1 quad mapped by matrix
+rect(void);                              // 1x1 quad mapped by matrix
 circle(void);                            // circle mapped by matrix (can be textured)
 triangle(void);                          // triangle mapped by matrix
 line(float x1, float y1, float x2, float y2); // draw a line segment
@@ -96,7 +96,7 @@ push();
 translate(x, y);
 scale(img.width, img.height);
 texture(&img);
-quad(); // Draws the image, correctly mapping UVs and converting BPP!
+rect(); // Draws the image, correctly mapping UVs and converting BPP!
 pop();
 ```
 

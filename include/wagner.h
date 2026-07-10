@@ -333,7 +333,7 @@ void no_color_key(void);
 // ============================================
 
 void clear(pixel_t color);
-void quad(void);
+void rect(void);
 void circle(void);
 void triangle(void); // Unit triangle
 void triangle_pts(float x1, float y1, float x2, float y2, float x3, float y3);
@@ -824,7 +824,7 @@ static void _wagner_triangle_textured(Canvas c, int x1, int y1, int x2, int y2, 
     }
 }
 
-void quad(void) {
+void rect(void) {
     Canvas c = _wagner_get_target();
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     WagnerRenderState* state = _wagner_current_state();

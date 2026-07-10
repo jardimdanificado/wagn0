@@ -63,8 +63,8 @@ static void draw_section1(void) {
             float t = ((float)(row * 4 + col)) / 11.0f;
             pixel_t fill_color = lerp_color(rgb(30, 80, 200), rgb(200, 60, 30), t);
             pixel_t outline = lerp_color(WHITE, YELLOW, t);
-            push(); translate(x, y); scale(60, 50); fill(fill_color); quad(); pop();
-            push(); translate(x, y); scale(60, 50); stroke(outline); quad(); pop();
+            push(); translate(x, y); scale(60, 50); fill(fill_color); rect(); pop();
+            push(); translate(x, y); scale(60, 50); stroke(outline); rect(); pop();
         }
     }
 
@@ -90,14 +90,14 @@ static void draw_section2(void) {
         pixel_t col = lerp_color(CYAN, MAGENTA, (float)i / 8.0f);
         push(); translate(ox, oy); scale(12, 12); fill(col); circle(); pop();
     }
-    push(); translate(0, 0); scale(offscreen.width, offscreen.height); stroke(WHITE); quad(); pop();
+    push(); translate(0, 0); scale(offscreen.width, offscreen.height); stroke(WHITE); rect(); pop();
     push(); translate(10, 55); fill(WHITE); text("offscreen"); pop();
 
     render_target(NULL);
     // Cola o offscreen centrado na tela
     int dx = (screen.width  - offscreen.width)  / 2;
     int dy = (screen.height - offscreen.height) / 2;
-    push(); translate(dx, dy); scale(offscreen.width, offscreen.height); texture(&offscreen); quad(); pop();
+    push(); translate(dx, dy); scale(offscreen.width, offscreen.height); texture(&offscreen); rect(); pop();
 
     // Mostra dimensões
     char info[64];
@@ -122,7 +122,7 @@ static void draw_section3(void) {
     // Mostra text_height
     int th = text_height();
     push(); translate(4, 22); fill(CYAN); text("text_height()=6"); pop();
-    push(); translate(3, 21); scale(text_width("text_height()=6"), th); stroke(CYAN); quad(); pop();
+    push(); translate(3, 21); scale(text_width("text_height()=6"), th); stroke(CYAN); rect(); pop();
 
     // dist do mouse ao centro
     float cx = screen.width  / 2.0f;
@@ -138,7 +138,7 @@ static void draw_section3(void) {
     // desenha barra proporcional
     int bar = (int)(d);
     if (bar > 300) bar = 300;
-    push(); translate(4, 52); scale(bar, 8); fill(lerp_color(GREEN, RED, d / 200.0f)); quad(); pop();
+    push(); translate(4, 52); scale(bar, 8); fill(lerp_color(GREEN, RED, d / 200.0f)); rect(); pop();
 
     push(); translate(4, 68); fill(GRAY); text("dist_sq > dist:ok"); pop();
 
@@ -169,17 +169,17 @@ static void draw_section4(void) {
     push(); translate(136, 86); fill(status_col); text(playing ? "tocando" : "parado"); pop();
 
     // Instruções
-    push(); translate(60, 150); scale(80, 24); stroke(WHITE); quad(); pop();
+    push(); translate(60, 150); scale(80, 24); stroke(WHITE); rect(); pop();
     push(); translate(72, 157); fill(WHITE); text("[space]"); pop();
     push(); translate(78, 166); fill(GRAY); text("tocar"); pop();
 
-    push(); translate(180, 150); scale(80, 24); stroke(WHITE); quad(); pop();
+    push(); translate(180, 150); scale(80, 24); stroke(WHITE); rect(); pop();
     push(); translate(202, 157); fill(WHITE); text("[s]"); pop();
     push(); translate(198, 166); fill(GRAY); text("parar"); pop();
 
     // Carregamento
     if (!beep.samples) {
-        push(); translate(60, 195); scale(200, 14); stroke(RED); quad(); pop();
+        push(); translate(60, 195); scale(200, 14); stroke(RED); rect(); pop();
         push(); translate(64, 198); fill(RED); text("beep.wav nao carregado"); pop();
     }
 }
@@ -213,7 +213,7 @@ void draw(void) {
     }
 
     // ── Rodapé de navegação ──
-    push(); translate(0, 232); scale(320, 8); fill(rgb(20, 20, 40)); quad(); pop();
+    push(); translate(0, 232); scale(320, 8); fill(rgb(20, 20, 40)); rect(); pop();
     for (int i = 0; i < NUM_SECTIONS; i++) {
         pixel_t dot = (i == section) ? WHITE : rgb(80, 80, 100);
         push(); translate(140 + i * 10, 236); scale(2, 2); fill(dot); circle(); pop();

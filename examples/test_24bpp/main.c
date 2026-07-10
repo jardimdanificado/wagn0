@@ -21,7 +21,7 @@ void draw() {
         translate((320 - img.width) / 2.0f, (240 - img.height) / 2.0f);
         scale(img.width, img.height);
         texture(&img);
-        quad();
+        rect();
         pop();
     }
 
@@ -42,7 +42,7 @@ void draw() {
         translate(i * bar_w, bar_y);
         scale(bar_w, bar_h);
         fill(colors[i]);
-        quad();
+        rect();
         pop();
     }
 }

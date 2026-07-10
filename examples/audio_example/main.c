@@ -44,8 +44,8 @@ void draw() {
         pixel_t fill = is_pressed ? rgb(100, 200, 100) : rgb(40, 40, 50);
         pixel_t outline = is_pressed ? WHITE : GRAY;
         
-        push(); translate(kx, ky); scale(40, 60); fill(fill); quad(); pop();
-        push(); translate(kx, ky); scale(40, 60); stroke(outline); quad(); pop();
+        push(); translate(kx, ky); scale(40, 60); fill(fill); rect(); pop();
+        push(); translate(kx, ky); scale(40, 60); stroke(outline); rect(); pop();
         
         push(); translate(kx + 10, ky + 10); fill(outline); text(labels[i]); pop();
         push(); translate(kx + 16, ky + 40); fill(is_pressed ? BLACK : WHITE); text(keys[i]); pop();

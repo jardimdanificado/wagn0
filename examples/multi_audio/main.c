@@ -24,7 +24,7 @@ void draw() {
     
     // Track 1
     int x1 = 15;
-    push(); translate(x1, 40); scale(90, 100); stroke(playing1 ? GREEN : rgb(50, 50, 70)); quad(); pop();
+    push(); translate(x1, 40); scale(90, 100); stroke(playing1 ? GREEN : rgb(50, 50, 70)); rect(); pop();
     push(); translate(x1 + 5, 45); fill(WHITE); text("audio.mp3"); pop();
     push(); translate(x1 + 80, 50); scale(4, 4); fill(track1.samples ? GREEN : RED); circle(); pop();
     push(); translate(x1 + 35, 120); fill(GRAY); text("[1]"); pop();
@@ -32,7 +32,7 @@ void draw() {
 
     // Track 2
     int x2 = 115;
-    push(); translate(x2, 40); scale(90, 100); stroke(playing2 ? CYAN : rgb(50, 50, 70)); quad(); pop();
+    push(); translate(x2, 40); scale(90, 100); stroke(playing2 ? CYAN : rgb(50, 50, 70)); rect(); pop();
     push(); translate(x2 + 5, 45); fill(WHITE); text("audio1.mp3"); pop();
     push(); translate(x2 + 80, 50); scale(4, 4); fill(track2.samples ? GREEN : RED); circle(); pop();
     push(); translate(x2 + 35, 120); fill(GRAY); text("[2]"); pop();
@@ -40,7 +40,7 @@ void draw() {
 
     // Track 3
     int x3 = 215;
-    push(); translate(x3, 40); scale(90, 100); stroke(playing3 ? YELLOW : rgb(50, 50, 70)); quad(); pop();
+    push(); translate(x3, 40); scale(90, 100); stroke(playing3 ? YELLOW : rgb(50, 50, 70)); rect(); pop();
     push(); translate(x3 + 5, 45); fill(WHITE); text("test.wav"); pop();
     push(); translate(x3 + 80, 50); scale(4, 4); fill(track3.samples ? GREEN : RED); circle(); pop();
     push(); translate(x3 + 35, 120); fill(GRAY); text("[3]"); pop();

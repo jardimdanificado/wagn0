@@ -52,7 +52,7 @@ void draw() {
         translate(0, y);
         scale(320, 4);
         fill(col);
-        quad();
+        rect();
         pop();
     }
 
@@ -69,11 +69,11 @@ void draw() {
             
             // Draw a tinted rectangle behind the sprite for flavor
             fill(sprites[i].tint);
-            quad();
+            rect();
             
             // Draw sprite
             texture(&sheet);
-            quad();
+            rect();
             
             pop();
         }
@@ -85,7 +85,7 @@ void draw() {
     scale(70, 20);
     fill(rgb(0, 0, 0));
     stroke(GRAY);
-    quad();
+    rect();
     pop();
 
     push();

@@ -36,10 +36,10 @@ void draw() {
         float t = (sin(w_ticks * 0.005f) + 1.0f) * 0.5f;
         pixel_t border_col = lerp_color(CYAN, MAGENTA, t);
         
-        push(); translate(ix - 2, iy - 2); scale(img.width + 4, img.height + 4); stroke(border_col); quad(); pop();
-        push(); translate(ix - 1, iy - 1); scale(img.width + 2, img.height + 2); stroke(border_col); quad(); pop();
+        push(); translate(ix - 2, iy - 2); scale(img.width + 4, img.height + 4); stroke(border_col); rect(); pop();
+        push(); translate(ix - 1, iy - 1); scale(img.width + 2, img.height + 2); stroke(border_col); rect(); pop();
         
-        push(); translate(ix, iy); scale(img.width, img.height); texture(&img); quad(); pop();
+        push(); translate(ix, iy); scale(img.width, img.height); texture(&img); rect(); pop();
         
         // Dimensions
         push(); translate(10, 220); fill(GRAY); text("W:"); pop();

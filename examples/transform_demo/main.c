@@ -30,7 +30,7 @@ void draw() {
     rotate(w_ticks * 0.002f);
     scale(60, 60);
     texture(&img);
-    quad(); // Draws a textured quad rotated around its top-left, since translate is top-left in default state machine unless we translate to center first
+    rect(); // Draws a textured quad rotated around its top-left, since translate is top-left in default state machine unless we translate to center first
     pop();
     
     // Rotating textured quad around its center
@@ -40,7 +40,7 @@ void draw() {
     translate(-30, -30); // Offset half the size to center it
     scale(60, 60);
     texture(&img);
-    quad();
+    rect();
     pop();
     
     // Textured circle (using texture mapped to a circle)
@@ -59,7 +59,7 @@ void draw() {
     scale(80, 40);
     fill(rgb(255, 100, 100)); // Tint color (mixes with texture in olivec)
     texture(&img);
-    quad();
+    rect();
     pop();
     
     // Text showing labels
