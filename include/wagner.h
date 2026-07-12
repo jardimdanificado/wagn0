@@ -212,9 +212,12 @@ static inline float max(float a, float b) {
 
 // Trigonometric functions using Bhaskara I approximation
 static inline float sin(float x) {
-    // Normalize to [0, 2π]
-    while (x < 0) x += TWO_PI;
-    while (x >= TWO_PI) x -= TWO_PI;
+    // Normalize to [0, 2π] using division to avoid O(N) loop
+    if (x < 0.0f || x >= TWO_PI) {
+        int q = (int)(x / TWO_PI);
+        x = x - (q * TWO_PI);
+        if (x < 0.0f) x += TWO_PI;
+    }
     
     if (x > PI) {
         float y = x - PI;
@@ -332,19 +335,19 @@ void no_color_key(void);
 // DRAWING PRIMITIVES
 // ============================================
 
-void clear(Canvas c);
-void rect(Canvas c);
-void circle(Canvas c);
-void triangle(Canvas c); // Unit triangle
-void triangle_pts(Canvas c, float x1, float y1, float x2, float y2, float x3, float y3);
-void line(Canvas c, float x1, float y1, float x2, float y2);
-void pixel(Canvas c, float x, float y);
+void clear(void);
+void rect(void);
+void circle(void);
+void triangle(void); // Unit triangle
+void triangle_pts(float x1, float y1, float x2, float y2, float x3, float y3);
+void line(float x1, float y1, float x2, float y2);
+void pixel(float x, float y);
 
 // Pixel access
 pixel_t pixel_at(Canvas c, int x, int y);
 
 // Texture-mapped triangle (perspective-correct UV)
-void triangle3uv(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3,
+void triangle3uv(int x1, int y1, int x2, int y2, int x3, int y3,
     float tx1, float ty1, float tx2, float ty2, float tx3, float ty3,
     float z1, float z2, float z3, Canvas texture);
 
@@ -352,7 +355,7 @@ void triangle3uv(Canvas c, int x1, int y1, int x2, int y2, int x3, int y3,
 // TEXT FUNCTIONS
 // ============================================
 
-void text(Canvas c, const char* text);
+void text(const char* text);
 int text_width(const char* text);
 
 // ============================================
@@ -761,7 +764,8 @@ static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t 
     else ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
 }
 
-void clear(Canvas c) {
+void clear(void) {
+    Canvas c = _wagner_get_target();
     WagnerRenderState* state = _wagner_current_state();
     if (!state->has_fill) return;
     pixel_t color = state->fill_color;
@@ -826,7 +830,8 @@ static void _wagner_triangle_textured(Canvas c, int x1, int y1, int x2, int y2, 
     }
 }
 
-void rect(Canvas c) {
+void rect(void) {
+    Canvas c = _wagner_get_target();
         Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     WagnerRenderState* state = _wagner_current_state();
     
@@ -900,7 +905,8 @@ void rect(Canvas c) {
     }
 }
 
-void circle(Canvas c) {
+void circle(void) {
+    Canvas c = _wagner_get_target();
         Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     WagnerRenderState* state = _wagner_current_state();
     
@@ -972,7 +978,8 @@ void circle(Canvas c) {
     }
 }
 
-void triangle_pts(Canvas c, float x1, float y1, float x2, float y2, float x3, float y3) {
+void triangle_pts(float x1, float y1, float x2, float y2, float x3, float y3) {
+    Canvas c = _wagner_get_target();
         Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     WagnerRenderState* state = _wagner_current_state();
     float fx1 = x1, fy1 = y1; _wagner_transform(&fx1, &fy1);
@@ -986,9 +993,11 @@ void triangle_pts(Canvas c, float x1, float y1, float x2, float y2, float x3, fl
     }
 }
 
-void triangle(Canvas c) { triangle_pts(c, 0, -1, 0.866025f, 0.5f, -0.866025f, 0.5f); }
+void triangle(void) {
+    Canvas c = _wagner_get_target(); triangle_pts(0, -1, 0.866025f, 0.5f, -0.866025f, 0.5f); }
 
-void line(Canvas c, float x1, float y1, float x2, float y2) {
+void line(float x1, float y1, float x2, float y2) {
+    Canvas c = _wagner_get_target();
         Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     WagnerRenderState* state = _wagner_current_state();
     if (!state->has_stroke) return;
@@ -997,7 +1006,8 @@ void line(Canvas c, float x1, float y1, float x2, float y2) {
     olivec_line(oc, (int)fx1, (int)fy1, (int)fx2, (int)fy2, state->stroke_color);
 }
 
-void pixel(Canvas c, float x, float y) {
+void pixel(float x, float y) {
+    Canvas c = _wagner_get_target();
         Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     WagnerRenderState* state = _wagner_current_state();
     if (!state->has_fill) return;
@@ -1010,11 +1020,12 @@ pixel_t pixel_at(Canvas c, int x, int y) {
     return (pixel_t)olivec_get_pixel(oc, x, y);
 }
 
-void triangle3uv(Canvas c,
+void triangle3uv(
     int x1, int y1, int x2, int y2, int x3, int y3,
     float tx1, float ty1, float tx2, float ty2, float tx3, float ty3,
     float z1, float z2, float z3, Canvas texture)
 {
+    Canvas c = _wagner_get_target();
     Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
     Olivec_Canvas tex = { texture.pixels, (size_t)texture.width, (size_t)texture.height, (size_t)texture.stride, texture.bpp };
     float fx1 = x1, fy1 = y1; _wagner_transform(&fx1, &fy1);
@@ -1030,7 +1041,8 @@ void triangle3uv(Canvas c,
 // ============================================
 
 
-void text(Canvas c, const char* text_str) {
+void text(const char* text_str) {
+    Canvas c = _wagner_get_target();
         WagnerRenderState* state = _wagner_current_state();
     if (!state->has_fill) return;
     

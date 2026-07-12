@@ -2,7 +2,7 @@
 #include "wagner.h"
 
 void draw() {
-    clear(screen, BLUE);
+    clear();
     draw_rect(screen, 10, 10, 100, 80, RED);
     draw_ellipse(screen, 200, 100, 80, 80, GREEN);
     draw_rect(screen, (int)wagn0.mouse.x - 20, (int)wagn0.mouse.y - 20, 40, 40, WHITE);

@@ -7,12 +7,12 @@ High-level game development API for Wagnostic.
 
 void draw() {
     fill(BLUE);
-    clear(screen);
+    clear();
     
     push();
     translate(10, 10);
     fill(RED);
-    rect(screen);
+    rect();
     pop();
 }
 ```
@@ -68,19 +68,19 @@ texture(Canvas* tex);                    // bind a texture to be mapped on primi
 ### Primitives
 
 ```c
-clear(Canvas c);                    // fill entire canvas with color
+clear(void);                    // fill entire canvas with color
 
-rect(Canvas c);                              // 1x1 quad mapped by matrix
-circle(Canvas c);                            // circle mapped by matrix (can be textured)
-triangle(Canvas c);                          // triangle mapped by matrix
-line(Canvas c, float x1, float y1, float x2, float y2); // draw a line segment
-pixel(Canvas c, float x, float y);                 // draw a single pixel
+rect(void);                              // 1x1 quad mapped by matrix
+circle(void);                            // circle mapped by matrix (can be textured)
+triangle(void);                          // triangle mapped by matrix
+line(float x1, float y1, float x2, float y2); // draw a line segment
+pixel(float x, float y);                 // draw a single pixel
 ```
 
 ### Text
 
 ```c
-text(Canvas c, const char* text_str);              // draws text at current origin using fill color
+text(const char* text_str);              // draws text at current origin using fill color
 int text_width(const char* text_str);    // calculate string width (depends on matrix horizontal scale)
 ```
 
@@ -97,7 +97,7 @@ push();
 translate(x, y);
 scale(img.width, img.height);
 texture(&img);
-rect(screen); // Draws the image, correctly mapping UVs and converting BPP!
+rect(); // Draws the image, correctly mapping UVs and converting BPP!
 pop();
 ```
 

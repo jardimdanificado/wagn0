@@ -7,12 +7,12 @@ void preload() {
 }
 
 void draw() {
-    push(); fill(BLACK); clear(screen); pop();
+    push(); fill(BLACK); clear(); pop();
     
     push();
     translate(10, 10);
     fill(WHITE);
-    text(screen, "32BPP MODE (RGBA8888)");
+    text("32BPP MODE (RGBA8888)");
     pop();
     
     if (img.pixels) {
@@ -20,7 +20,7 @@ void draw() {
         translate((320 - img.width) / 2.0f, (240 - img.height) / 2.0f);
         scale(img.width, img.height);
         texture(&img);
-        rect(screen);
+        rect();
         pop();
     }
 }

@@ -19,7 +19,7 @@ pixel_t my_shader(int x, int y, float u, float v, float time) {
     float cx = 0.5f + sin(time * 1.5f) * 0.2f;
     float cy = 0.5f + cos(time * 2.0f) * 0.2f;
     
-    // distance from current pixel (u,v) to center (cx,cy)
+    // distance from current pixel(v) to center (cx,cy)
     float d = dist(u, v, cx, cy);
     
     // create rings using sine wave
@@ -36,6 +36,25 @@ pixel_t my_shader(int x, int y, float u, float v, float time) {
     return rgba(r, g, b, 255);
 }
 // ---------------------------------------------------------
+
+static void draw_number(int n, int x, int y, pixel_t color) {
+    char str[16];
+    int i = 0;
+    if (n == 0) { str[i++] = '0'; }
+    else {
+        int tmp = n;
+        while (tmp > 0) { str[i++] = '0' + (tmp % 10); tmp /= 10; }
+        for (int j = 0; j < i/2; j++) {
+            char t = str[j]; str[j] = str[i-1-j]; str[i-1-j] = t;
+        }
+    }
+    str[i] = '\0';
+    push();
+    translate(x, y);
+    fill(color);
+    text(str);
+    pop();
+}
 
 void setup(void) {
     set_fps(60);
@@ -61,4 +80,13 @@ void draw(void) {
             vram[idx++] = color;
         }
     }
+    
+    // Draw FPS counter
+    push();
+    translate(10, 20);
+    fill(rgb(0, 0, 0));
+    rect(); // background block
+    pop();
+    
+    draw_number(wagner.fps, 10, 20, WHITE);
 }
