@@ -19,9 +19,32 @@ jobs:
       - name: Prepare Wagnostic Dependencies
         run: |
           mkdir -p ../runners/web
-          wget https://raw.githubusercontent.com/jardimdanificado/wagnostic/master/runners/web/sysroot.json -O ../runners/web/sysroot.json
-          wget https://raw.githubusercontent.com/jardimdanificado/wagnostic/master/runners/web/cc.wasm -O ../runners/web/cc.wasm
           wget https://raw.githubusercontent.com/jardimdanificado/wagnostic/master/runners/web/runner.js -O ../runners/web/runner.js
+          
+          # Clone xcc and build cc.wasm
+          git clone https://github.com/tyfkda/xcc.git /tmp/xcc
+          cd /tmp/xcc
+          make wcc
+          rm -rf obj
+          make cc.wasm CC=./wcc
+          cp cc.wasm $GITHUB_WORKSPACE/../runners/web/cc.wasm
+          cd $GITHUB_WORKSPACE
+          
+          # Generate base sysroot.json
+          python3 -c "import os, json, base64
+          def build_flat(path, prefix):
+              flat = {}
+              if not os.path.exists(path): return flat
+              for root, dirs, files in os.walk(path):
+                  for f in files:
+                      if f.endswith('.h') or f.endswith('.c'):
+                          full = os.path.join(root, f)
+                          rel = os.path.relpath(full, path)
+                          flat[f'sysroot/{prefix}/{rel}'] = base64.b64encode(open(full, 'rb').read()).decode('utf-8')
+              return flat
+          sysroot = build_flat('/tmp/xcc/include', 'include')
+          with open('../runners/web/sysroot.json', 'w') as f:
+              json.dump(sysroot, f)"
 
       - name: Build Web REPL
         run: |
