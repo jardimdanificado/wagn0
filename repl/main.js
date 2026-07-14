@@ -99,10 +99,30 @@ function updateAssetList() {
     for (const name of keys) {
         const div = document.createElement('div');
         div.className = 'asset-item';
-        div.innerHTML = `<span>${name}</span> <span class="asset-remove" onclick="removeAsset('${name}')">✕</span>`;
+        div.innerHTML = `
+            <span>${name}</span> 
+            <div style="display:flex; gap: 8px; align-items: center;">
+                <span style="cursor:pointer; color: #888;" onclick="renameAsset('${name}')" title="Rename">✎</span>
+                <span class="asset-remove" onclick="removeAsset('${name}')" title="Remove">✕</span>
+            </div>
+        `;
         lst.appendChild(div);
     }
 }
+
+window.renameAsset = (oldName) => {
+    const newName = prompt("Rename asset:", oldName);
+    if (newName && newName !== oldName && newName.trim() !== '') {
+        const cleanName = newName.trim();
+        if (uploadedAssets[cleanName]) {
+            alert("An asset with this name already exists!");
+            return;
+        }
+        uploadedAssets[cleanName] = uploadedAssets[oldName];
+        delete uploadedAssets[oldName];
+        updateAssetList();
+    }
+};
 
 window.removeAsset = (name) => {
     delete uploadedAssets[name];
