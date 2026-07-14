@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wagner REPL</title>
+    
+    <!-- Monaco Editor -->
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs/editor/editor.main.min.css">
+    
+    <style>
+        :root {
+            --bg-base: #1e1e1e;
+            --bg-panel: #252526;
+            --bg-header: #333333;
+            --border: #3c3c3c;
+            --accent: #007acc;
+            --accent-hover: #005f9e;
+            --text-main: #cccccc;
+            --text-light: #ffffff;
+            --success: #89d185;
+            --error: #f48771;
+            --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: 'Consolas', 'Courier New', monospace;
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            height: 40px;
+            background: var(--bg-header);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .topbar-title {
+            font-weight: 600;
+            color: var(--text-light);
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .topbar-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            background: var(--bg-panel);
+            color: var(--text-light);
+            border: 1px solid var(--border);
+            padding: 4px 12px;
+            border-radius: 2px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.1s;
+            font-family: var(--font-ui);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover { background: #2a2d2e; }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow-y: auto;
+            gap: 16px;
+            padding: 16px;
+        }
+
+        .editor-section {
+            flex: 0 0 50vh;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-base);
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        @media (min-width: 800px) {
+            .workspace {
+                flex-direction: row;
+                overflow: hidden; /* Fill screen height on PC */
+            }
+            .editor-section {
+                flex: 1;
+                height: 100%;
+            }
+            .sidebar {
+                width: 340px;
+                height: 100%;
+                overflow-y: auto;
+                padding-right: 4px;
+            }
+        }
+
+        .panel-header {
+            height: 30px;
+            background: var(--bg-panel);
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #969696;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .tab {
+            padding: 0 16px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            border-right: 1px solid var(--border);
+            border-top: 2px solid transparent;
+        }
+
+        .tab.active {
+            background: var(--bg-base);
+            color: var(--text-light);
+            border-top: 2px solid var(--accent);
+        }
+
+        .tab:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #monaco-root {
+            flex: 1;
+            width: 100%;
+        }
+
+
+        
+        .sidebar-card {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-base);
+        }
+
+        .preview-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px;
+            background: #111111; 
+        }
+
+        #gameCanvas {
+            background: #000;
+            image-rendering: pixelated;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            max-width: 100%;
+            height: auto !important;
+        }
+
+        .assets-section {
+            display: flex;
+            flex-direction: column;
+            max-height: 200px;
+        }
+
+        .assets-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .asset-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+        }
+
+        .asset-remove {
+            color: var(--error);
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .asset-remove:hover { color: #ff5555; }
+
+        .terminal-section {
+            display: flex;
+            flex-direction: column;
+            height: 200px;
+        }
+
+        #log {
+            flex: 1;
+            padding: 8px 12px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--text-main);
+            overflow-y: auto;
+            margin: 0;
+            white-space: pre-wrap;
+            background: transparent;
+        }
+
+        .log-success { color: var(--success); }
+        .log-error { color: var(--error); }
+
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="topbar-title">Wagner Web REPL</div>
+        <div class="topbar-actions">
+            <input type="file" id="asset-upload" multiple style="display: none;">
+            <button class="btn" onclick="document.getElementById('asset-upload').click()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Add Assets
+            </button>
+            <button class="btn" id="btn-save" style="display: none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Save ROM
+            </button>
+            <button class="btn btn-primary" id="btn-compile">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Run (Ctrl+Enter)
+            </button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="editor-section">
+            <div class="panel-header" id="editor-tabs">
+                <div class="tab active" data-file="main.c">main.c</div>
+                <div class="tab" data-file="wagner.json">wagner.json</div>
+            </div>
+            <div id="monaco-root"></div>
+        </div>
+
+        <div class="sidebar">
+            <div class="panel-header">Canvas</div>
+            <div class="preview-section">
+                <canvas id="gameCanvas" width="320" height="240"></canvas>
+                <!-- Dummy elements for runner.js -->
+                <div id="emptyState" style="display:none;"></div>
+                <input type="file" id="wasmInput" style="display:none;">
+            </div>
+
+            <div class="panel-header">Assets</div>
+            <div class="assets-section">
+                <div class="assets-list" id="assets-list">
+                    <div style="color: #666; font-size: 12px; text-align: center; padding: 10px;">No assets added.</div>
+                </div>
+            </div>
+
+            <div class="panel-header">Terminal</div>
+            <div class="terminal-section">
+                <div id="log"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monaco Scripts -->
+    <script>var require = { paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs' } };</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs/loader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs/editor/editor.main.nls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs/editor/editor.main.js"></script>
+    
+    <script src="runner.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

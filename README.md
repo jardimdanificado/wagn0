@@ -172,20 +172,17 @@ void key_released(int key);
 All callbacks must be defined. Use `#define WAGNER_NO_DEFAULT_CALLBACKS` before
 including `wagner.h` if you define your own (to avoid weak-default conflicts).
 
-## Assets (VFS)
+## Assets
 
-Put files in `assets/`. They are bundled into the `.tar` Virtual File System automatically during `wagner build` and can be loaded dynamically at runtime:
+Put files in your project directory (e.g. `assets/`). They can be loaded dynamically at runtime using the `preload` function:
 
 ```c
-size_t size;
-uint8_t* png_data = file_load("assets/icon.png", &size);
-if (png_data) {
-    Canvas icon = img_load(png_data, size);
-    // Use with texture() in state machine
+void preload() {
+    load_image(&img, "assets/icon.png");
 }
 ```
 
-Saving is completely transparent. Write to any path inside the `.tar` and it will be appended permanently (append-only inplace save):
+Saving is completely transparent. Write to any path and it will be saved to the host file system:
 
 ```c
 file_save("save.txt", "score: 100", 10);
@@ -197,7 +194,7 @@ file_save("save.txt", "score: 100", 10);
 wagner new mygame
 cd mygame
 # place PNGs in assets/, write main.c
-wagner build       # compiles with decoders and packages .tar VFS
+wagner build       # compiles with decoders
 wagner run         # run with native host
 wagner run --runner sm   # use SpiderMonkey host
 wagner dev         # watch, rebuild, run
@@ -217,7 +214,7 @@ templates/    project skeleton for `wagner new`
 | Command | Description |
 |---------|-------------|
 | `wagner new <name>` | Create project with `assets/` directory |
-| `wagner build` | Scan `assets/`, package into `.tar`, compile to WASM |
+| `wagner build` | Compile project to WASM |
 | `wagner run [--runner native\|sm]` | Run with host |
 | `wagner dev [--runner native\|sm]` | Watch + rebuild + run |
 

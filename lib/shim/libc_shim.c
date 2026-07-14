@@ -16,7 +16,11 @@ void *malloc(size_t size) {
     size_t total = ((size + HEADER_SIZE) + 7) & ~(size_t)7;
     size_t mem_size = __builtin_wasm_memory_size(0) * 65536;
     char *heap_start = (char *)&__heap_base;
-    if ((size_t)(heap_start + arena_used + total) > mem_size) return 0;
+    if ((size_t)(heap_start + arena_used + total) > mem_size) {
+        size_t needed = (size_t)(heap_start + arena_used + total) - mem_size;
+        size_t pages = (needed + 65535) / 65536;
+        if (__builtin_wasm_memory_grow(0, pages) == (size_t)-1) return 0;
+    }
     char *base = heap_start + arena_used;
     *(size_t*)base = size;
     arena_used += total;
@@ -228,3 +232,12 @@ float expf(float x) { return (float)exp((double)x); }
 float logf(float x) { return (float)log((double)x); }
 float powf(float x, float y) { return (float)pow((double)x, (double)y); }
 float sqrtf(float x) { return (float)sqrt((double)x); }
+
+// Weak stubs for wagner callbacks
+__attribute__((weak)) void preload(void) {}
+__attribute__((weak)) void setup(void) {}
+__attribute__((weak)) void draw(void) {}
+__attribute__((weak)) void mouse_pressed(void) {}
+__attribute__((weak)) void mouse_released(void) {}
+__attribute__((weak)) void key_pressed(int key) { (void)key; }
+__attribute__((weak)) void key_released(int key) { (void)key; }

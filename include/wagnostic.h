@@ -117,16 +117,15 @@ typedef struct {
     uint32_t audio_buffer_offset;
 
     // --- I/O Operations (ROM writes, Host reads/writes) ---
-    uint32_t io_load;
-    uint32_t io_load_buffer;
-    uint32_t io_load_size;
-    uint32_t io_save;
-    uint32_t io_save_buffer;
-    uint32_t io_save_size;
-
-    // --- Reserved padding (brings total struct size to 1024 bytes) ---
-    uint8_t reserved[16];
+    uint8_t  reserved[40];
 } WagnosticState;
+
+typedef struct {
+    uint16_t x, y;            // Scissor position (VRAM region)
+    uint16_t width, height;   // Scissor size (VRAM region)
+    uint32_t shader_ptr;      // Offset to null-terminated GLSL string
+    uint32_t params_ptr;      // Offset to float array 'u_params'
+} WagnosticShaderJob;
 
 // ============================================
 // BUFFER ACCESS MACROS

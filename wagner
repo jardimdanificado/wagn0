@@ -97,8 +97,30 @@ build_wasm() {
 
     info "Compiling ${NAME} -> ${target}"
     
-    # Delete old assets.h if exists
-    [ -f assets.h ] && rm assets.h
+    # Generate assets.h
+    echo "#pragma once" > assets.h
+    echo "typedef struct { const char* path; const unsigned char* data; unsigned int size; } WagnerAsset;" >> assets.h
+    local asset_count=0
+    if [ -d "assets" ]; then
+        for f in $(find assets -type f 2>/dev/null); do
+            local varname="asset_${asset_count}"
+            xxd -i "$f" | sed "s/unsigned char.*/const unsigned char ${varname}[] = {/" | sed "s/unsigned int.*//" >> assets.h
+            asset_count=$((asset_count + 1))
+        done
+    fi
+    echo "static const WagnerAsset WAGNER_ASSETS[] = {" >> assets.h
+    local i=0
+    if [ -d "assets" ]; then
+        for f in $(find assets -type f 2>/dev/null); do
+            local name
+            name=$(basename "$f")
+            echo "    {\"${name}\", asset_${i}, sizeof(asset_${i})}," >> assets.h
+            i=$((i + 1))
+        done
+    fi
+    [ $i -eq 0 ] && echo "    {0, 0, 0}" >> assets.h
+    echo "};" >> assets.h
+    echo "static const int WAGNER_ASSET_COUNT = ${asset_count};" >> assets.h
 
     # Detect which decoders are needed and add their source + include paths
     local decoder_c_files=""
@@ -149,23 +171,7 @@ build_wasm() {
         local dec=$(((size % 1024) * 10 / 1024))
         ok "${target} (${kb}.${dec} KB)"
         
-        # Package into .tar if assets exist
-        if [ -d "assets" ] && [ -n "$(ls -A assets 2>/dev/null)" ]; then
-            local wag_target="${NAME}.tar"
-            local tmpdir
-            tmpdir=$(mktemp -d)
-            cp "$target" "$tmpdir/main.wasm"
-            cp -r assets/* "$tmpdir/"
-            (cd "$tmpdir" && tar -cf "$wag_target" --format=ustar *)
-            mv "$tmpdir/$wag_target" "./$wag_target"
-            rm -rf "$tmpdir"
-            
-            local wsize
-            wsize=$(stat -c%s "$wag_target" 2>/dev/null || stat -f%z "$wag_target" 2>/dev/null)
-            local wkb=$((wsize / 1024))
-            local wdec=$(((wsize % 1024) * 10 / 1024))
-            ok "${wag_target} (${wkb}.${wdec} KB) [TAR]"
-        fi
+
         
         return 0
     else
@@ -232,12 +238,8 @@ cmd_run() {
     local file="${1:-}"
     if [ -z "$file" ]; then
         load_config
-        if [ -f "${NAME}.tar" ]; then
-            file="${NAME}.tar"
-        elif [ -f "${NAME}.wasm" ]; then
+        if [ -f "${NAME}.wasm" ]; then
             file="${NAME}.wasm"
-        elif [ -f "game.tar" ]; then
-            file="game.tar"
         else
             file="game.wasm"
         fi
@@ -263,7 +265,6 @@ cmd_dev() {
         [ "$host_pid" -ne 0 ] && kill "$host_pid" 2>/dev/null || true
         if build_wasm; then
             local run_tgt="$target"
-            [ -f "${NAME}.tar" ] && run_tgt="${NAME}.tar"
             run_wasm "$run_tgt" &
             host_pid=$!
         fi
@@ -293,7 +294,7 @@ cmd_dev() {
     done
 }
 
-# ── Asset pipeline (removed, using .tar tar packaging instead) ────────────
+# ── Asset pipeline (removed) ────────────
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 

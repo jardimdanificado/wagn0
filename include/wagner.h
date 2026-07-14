@@ -1218,53 +1218,42 @@ WagnerAudio ogg_decode(const uint8_t* data, size_t size) {
 // PRELOAD SYSTEM
 // ============================================
 
-typedef enum {
-    WAGNER_ASSET_IMAGE,
-    WAGNER_ASSET_AUDIO,
-    WAGNER_ASSET_DATA
-} WagnerAssetType;
+#include "assets.h"
 
-typedef struct {
-    char path[128];
-    WagnerAssetType type;
-    void* target;
-} WagnerAssetRequest;
-
-#define WAGNER_MAX_ASSET_REQUESTS 64
-static WagnerAssetRequest _wagner_asset_queue[WAGNER_MAX_ASSET_REQUESTS];
-static int _wagner_queue_head = 0;
-static int _wagner_queue_tail = 0;
-
-static int _wagner_preloading_state = 0;
-// 0 = Initial (run preload, then move to 1)
-// 1 = Loading (process queue until empty, then move to 2)
-// 2 = Setup (run setup, then move to 3)
-// 3 = Running
-
-static int _wagner_io_step = 0; 
-// 0 = Idle / Dequeue next
-// 1 = Waiting for size
-// 2 = Waiting for data
-static uint8_t* _wagner_io_buffer = NULL;
+static const WagnerAsset* _wagner_find_asset(const char* path) {
+    for (int i = 0; i < WAGNER_ASSET_COUNT; i++) {
+        const char* a = WAGNER_ASSETS[i].path;
+        const char* b = path;
+        while (*a && *b && *a == *b) { a++; b++; }
+        if (*a == 0 && *b == 0) return &WAGNER_ASSETS[i];
+    }
+    return NULL;
+}
 
 void load_image(Canvas* out, const char* path) {
-    if (_wagner_queue_tail >= WAGNER_MAX_ASSET_REQUESTS) return;
-    WagnerAssetRequest* req = &_wagner_asset_queue[_wagner_queue_tail++];
-    int i = 0;
-    while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
-    req->path[i] = '\0';
-    req->type = WAGNER_ASSET_IMAGE;
-    req->target = out;
+    const WagnerAsset* asset = _wagner_find_asset(path);
+    if (asset && out) {
+#ifndef WAGNER_NO_PNG_DECODE
+        *out = img_load((uint8_t*)asset->data, asset->size);
+#endif
+    }
 }
 
 void load_audio(WagnerAudio* out, const char* path) {
-    if (_wagner_queue_tail >= WAGNER_MAX_ASSET_REQUESTS) return;
-    WagnerAssetRequest* req = &_wagner_asset_queue[_wagner_queue_tail++];
-    int i = 0;
-    while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
-    req->path[i] = '\0';
-    req->type = WAGNER_ASSET_AUDIO;
-    req->target = out;
+    const WagnerAsset* asset = _wagner_find_asset(path);
+    if (asset && out) {
+#ifndef WAGNER_NO_AUDIO_DECODE
+        int len = 0; while(path[len]) len++;
+        if (len >= 4) {
+            const char* ext = &path[len-4];
+            if (ext[1]=='w' && ext[2]=='a' && ext[3]=='v') {
+                *out = wav_decode((uint8_t*)asset->data, asset->size);
+            } else if (ext[1]=='o' && ext[2]=='g' && ext[3]=='g') {
+                *out = ogg_decode((uint8_t*)asset->data, asset->size);
+            }
+        }
+#endif
+    }
 }
 
 typedef struct {
@@ -1273,36 +1262,14 @@ typedef struct {
 } WagnerData;
 
 void load_data(WagnerData* out, const char* path) {
-    if (_wagner_queue_tail >= WAGNER_MAX_ASSET_REQUESTS) return;
-    WagnerAssetRequest* req = &_wagner_asset_queue[_wagner_queue_tail++];
-    int i = 0;
-    while(path[i] && i < 127) { req->path[i] = path[i]; i++; }
-    req->path[i] = '\0';
-    req->type = WAGNER_ASSET_DATA;
-    req->target = out;
+    const WagnerAsset* asset = _wagner_find_asset(path);
+    if (asset && out) {
+        out->data = (void*)asset->data;
+        out->size = asset->size;
+    }
 }
 
-static char _wagner_save_path[128];
-bool file_save(const char* path, const void* data, uint32_t size) {
-    if (_wagner_rom.state.io_save) return false; // Busy
-    int i = 0;
-    while(path[i] && i < 127) { _wagner_save_path[i] = path[i]; i++; }
-    _wagner_save_path[i] = '\0';
-    _wagner_rom.state.io_save_buffer = (uint32_t)(uintptr_t)data;
-    _wagner_rom.state.io_save_size = size;
-    _wagner_rom.state.io_save = (uint32_t)(uintptr_t)_wagner_save_path;
-    return true;
-}
-
-bool file_is_saving(void) {
-    return _wagner_rom.state.io_save != 0;
-}
-
-static void _wagner_copy_str(uint8_t* dst, const char* src) {
-    int i = 0;
-    while(src[i] && i < 255) { dst[i] = src[i]; i++; }
-    dst[i] = '\0';
-}
+// Save removed in Wagnostic 2.0
 
 int wupdate() {
     static int init = 0;
@@ -1343,112 +1310,11 @@ int wupdate() {
         wagner.keys[i] = k;
     }
 
-    if (_wagner_preloading_state == 0) {
+    static int preloaded = 0;
+    if (!preloaded) {
+        preloaded = 1;
         if (preload) preload();
-        _wagner_preloading_state = 1;
-        _wagner_io_step = 0;
-    }
-
-    if (_wagner_preloading_state == 1) {
-        if (_wagner_queue_head >= _wagner_queue_tail) {
-            _wagner_preloading_state = 2; // Done loading
-        } else {
-            WagnerAssetRequest* req = &_wagner_asset_queue[_wagner_queue_head];
-            
-            if (_wagner_io_step == 0) {
-                // Step 0: Ask for file size
-                _wagner_rom.state.io_load = (uint32_t)(uintptr_t)_wagner_rom.state.title; // use title temporarily or allocated buffer
-                // Actually, let's use a 256 byte buffer inside state or just a static buffer
-                static uint8_t path_buf[256];
-                _wagner_copy_str(path_buf, req->path);
-                _wagner_rom.state.io_load = (uint32_t)(uintptr_t)path_buf;
-                _wagner_rom.state.io_load_buffer = 0; // ask for size
-                _wagner_rom.state.io_load_size = 0;
-                _wagner_io_step = 1;
-                return (int)&_wagner_rom.state;
-            } 
-            else if (_wagner_io_step == 1) {
-                // Step 1: Wait for size to be returned
-                if (_wagner_rom.state.io_load != 0) return (int)&_wagner_rom.state; // Host hasn't cleared it yet
-                
-                uint32_t size = _wagner_rom.state.io_load_size;
-                if (size == 0) {
-                    // File not found or empty
-                    _wagner_queue_head++;
-                    _wagner_io_step = 0;
-                    return (int)&_wagner_rom.state;
-                }
-                
-                // Allocate buffer
-                _wagner_io_buffer = (uint8_t*)malloc(size);
-                if (!_wagner_io_buffer) {
-                    _wagner_queue_head++;
-                    _wagner_io_step = 0;
-                    return (int)&_wagner_rom.state;
-                }
-                
-                // Request actual data
-                static uint8_t path_buf[256];
-                _wagner_copy_str(path_buf, req->path);
-                _wagner_rom.state.io_load = (uint32_t)(uintptr_t)path_buf;
-                _wagner_rom.state.io_load_buffer = (uint32_t)(uintptr_t)_wagner_io_buffer;
-                _wagner_io_step = 2;
-                return (int)&_wagner_rom.state;
-            }
-            else if (_wagner_io_step == 2) {
-                // Step 2: Wait for data
-                if (_wagner_rom.state.io_load != 0) return (int)&_wagner_rom.state; // Not ready
-                
-                uint32_t size = _wagner_rom.state.io_load_size;
-                
-                // Decode data
-                if (req->type == WAGNER_ASSET_IMAGE) {
-#ifndef WAGNER_NO_PNG_DECODE
-                    Canvas img = img_load(_wagner_io_buffer, size);
-                    if (req->target) *((Canvas*)req->target) = img;
-#endif
-                } else if (req->type == WAGNER_ASSET_AUDIO) {
-#ifndef WAGNER_NO_AUDIO_DECODE
-                    // Basic sniffer to decide between wav/mp3/ogg based on path extension
-                    int len = 0; while(req->path[len]) len++;
-                    if (len >= 4) {
-                        const char* ext = &req->path[len-4];
-                        if (ext[1]=='w' && ext[2]=='a' && ext[3]=='v') {
-                            WagnerAudio a = wav_decode(_wagner_io_buffer, size);
-                            if (req->target) *((WagnerAudio*)req->target) = a;
-                        }
-                        else if (ext[1]=='m' && ext[2]=='p' && ext[3]=='3') {
-                            WagnerAudio a = mp3_decode(_wagner_io_buffer, size);
-                            if (req->target) *((WagnerAudio*)req->target) = a;
-                        }
-                        else if (ext[1]=='o' && ext[2]=='g' && ext[3]=='g') {
-                            WagnerAudio a = ogg_decode(_wagner_io_buffer, size);
-                            if (req->target) *((WagnerAudio*)req->target) = a;
-                        }
-                    }
-#endif
-                } else if (req->type == WAGNER_ASSET_DATA) {
-                    if (req->target) {
-                        WagnerData* d = (WagnerData*)req->target;
-                        d->data = _wagner_io_buffer;
-                        d->size = size;
-                    }
-                    _wagner_io_buffer = NULL; // Do not free it! User owns it.
-                }
-                
-                if (_wagner_io_buffer) free(_wagner_io_buffer);
-                _wagner_io_buffer = NULL;
-                
-                _wagner_queue_head++;
-                _wagner_io_step = 0;
-                return (int)&_wagner_rom.state;
-            }
-        }
-    }
-
-    if (_wagner_preloading_state == 2) {
         if (setup) setup();
-        _wagner_preloading_state = 3;
     }
 
     // Regular draw loop
