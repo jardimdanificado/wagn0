@@ -111,6 +111,7 @@ OLIVECDEF Olivec_Canvas olivec_canvas(void *pixels, size_t width, size_t height,
 }
 
 OLIVECDEF Olivec_Canvas olivec_subcanvas(Olivec_Canvas oc, int x, int y, int w, int h) {
+    if (oc.bpp < 8) return (Olivec_Canvas){0}; // Not supported for sub-byte
     Olivec_Normalized_Rect nr;
     if (!olivec_normalize_rect(x, y, w, h, oc.width, oc.height, &nr)) return (Olivec_Canvas){0};
     size_t bpp_bytes = (oc.bpp == 24) ? 3 : (oc.bpp / 8);
@@ -120,24 +121,55 @@ OLIVECDEF Olivec_Canvas olivec_subcanvas(Olivec_Canvas oc, int x, int y, int w, 
 
 static inline void olivec_set_pixel(Olivec_Canvas oc, int x, int y, uint32_t color) {
     if (x < 0 || (size_t)x >= oc.width || y < 0 || (size_t)y >= oc.height) return;
-    if (oc.bpp == 32) ((uint32_t*)oc.pixels)[y * oc.stride + x] = color;
+    size_t idx = y * oc.stride + x;
+    if (oc.bpp == 32) ((uint32_t*)oc.pixels)[idx] = color;
     else if (oc.bpp == 24) {
-        uint8_t *p = &((uint8_t*)oc.pixels)[(y * oc.stride + x) * 3];
+        uint8_t *p = &((uint8_t*)oc.pixels)[idx * 3];
         p[0] = color & 0xFF; p[1] = (color >> 8) & 0xFF; p[2] = (color >> 16) & 0xFF;
     }
-    else if (oc.bpp == 16) { if (color != 0) ((uint16_t*)oc.pixels)[y * oc.stride + x] = (uint16_t)color; }
-    else if (oc.bpp == 8)  { if (color != 0) ((uint8_t*)oc.pixels)[y * oc.stride + x] = (uint8_t)color; }
+    else if (oc.bpp == 16) { ((uint16_t*)oc.pixels)[idx] = (uint16_t)color; }
+    else if (oc.bpp == 8)  { ((uint8_t*)oc.pixels)[idx] = (uint8_t)color; }
+    else if (oc.bpp == 4) {
+        uint8_t *p = (uint8_t*)oc.pixels;
+        if (idx % 2 == 0) p[idx / 2] = (p[idx / 2] & 0x0F) | ((color & 0x0F) << 4);
+        else              p[idx / 2] = (p[idx / 2] & 0xF0) | (color & 0x0F);
+    }
+    else if (oc.bpp == 2) {
+        uint8_t *p = (uint8_t*)oc.pixels;
+        int shift = 6 - ((idx % 4) * 2);
+        p[idx / 4] = (p[idx / 4] & ~(3 << shift)) | ((color & 3) << shift);
+    }
+    else if (oc.bpp == 1) {
+        uint8_t *p = (uint8_t*)oc.pixels;
+        int bit = 7 - (idx % 8);
+        if (color & 1) p[idx / 8] |= (1 << bit);
+        else           p[idx / 8] &= ~(1 << bit);
+    }
 }
 
 static inline uint32_t olivec_get_pixel(Olivec_Canvas oc, int x, int y) {
     if (x < 0 || (size_t)x >= oc.width || y < 0 || (size_t)y >= oc.height) return 0;
-    if (oc.bpp == 32) return ((uint32_t*)oc.pixels)[y * oc.stride + x];
+    size_t idx = y * oc.stride + x;
+    if (oc.bpp == 32) return ((uint32_t*)oc.pixels)[idx];
     if (oc.bpp == 24) {
-        uint8_t *p = &((uint8_t*)oc.pixels)[(y * oc.stride + x) * 3];
+        uint8_t *p = &((uint8_t*)oc.pixels)[idx * 3];
         return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | 0xFF000000u;
     }
-    if (oc.bpp == 16) return ((uint16_t*)oc.pixels)[y * oc.stride + x];
-    return ((uint8_t*)oc.pixels)[y * oc.stride + x];
+    if (oc.bpp == 16) return ((uint16_t*)oc.pixels)[idx];
+    if (oc.bpp == 8) return ((uint8_t*)oc.pixels)[idx];
+    if (oc.bpp == 4) {
+        uint8_t byte = ((uint8_t*)oc.pixels)[idx / 2];
+        return (idx % 2 == 0) ? (byte >> 4) : (byte & 0x0F);
+    }
+    if (oc.bpp == 2) {
+        uint8_t byte = ((uint8_t*)oc.pixels)[idx / 4];
+        return (byte >> (6 - ((idx % 4) * 2))) & 3;
+    }
+    if (oc.bpp == 1) {
+        uint8_t byte = ((uint8_t*)oc.pixels)[idx / 8];
+        return (byte >> (7 - (idx % 8))) & 1;
+    }
+    return 0;
 }
 
 OLIVECDEF void olivec_fill(Olivec_Canvas oc, uint32_t color) {
@@ -149,7 +181,26 @@ OLIVECDEF void olivec_fill(Olivec_Canvas oc, uint32_t color) {
         while(n--) { *p++ = r; *p++ = g; *p++ = b; }
     }
     else if (oc.bpp == 16) { uint16_t *p = (uint16_t*)oc.pixels; while(n--) *p++ = (uint16_t)color; }
-    else { uint8_t *p = (uint8_t*)oc.pixels; while(n--) *p++ = (uint8_t)color; }
+    else if (oc.bpp == 8) { uint8_t *p = (uint8_t*)oc.pixels; while(n--) *p++ = (uint8_t)color; }
+    else if (oc.bpp == 4) {
+        uint8_t byte = (color & 0x0F) | ((color & 0x0F) << 4);
+        uint8_t *p = (uint8_t*)oc.pixels;
+        size_t bytes = (n + 1) / 2;
+        while(bytes--) *p++ = byte;
+    }
+    else if (oc.bpp == 2) {
+        uint8_t c = color & 3;
+        uint8_t byte = c | (c << 2) | (c << 4) | (c << 6);
+        uint8_t *p = (uint8_t*)oc.pixels;
+        size_t bytes = (n + 3) / 4;
+        while(bytes--) *p++ = byte;
+    }
+    else if (oc.bpp == 1) {
+        uint8_t byte = (color & 1) ? 0xFF : 0x00;
+        uint8_t *p = (uint8_t*)oc.pixels;
+        size_t bytes = (n + 7) / 8;
+        while(bytes--) *p++ = byte;
+    }
 }
 
 OLIVECDEF void olivec_rect(Olivec_Canvas oc, int x, int y, int w, int h, uint32_t color) {

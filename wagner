@@ -122,6 +122,24 @@ build_wasm() {
     echo "};" >> assets.h
     echo "static const int WAGNER_ASSET_COUNT = ${asset_count};" >> assets.h
 
+    echo "static inline void _wagner_config_init_palette() {" >> assets.h
+    if [ -f wagner.json ]; then
+        if command -v python3 >/dev/null 2>&1; then
+            python3 -c '
+import json, sys
+try:
+    with open("wagner.json") as f: d = json.load(f)
+    if "palette" in d:
+        for i, c in enumerate(d["palette"]):
+            if isinstance(c, str) and c.startswith("#"):
+                c = int(c[1:], 16) | 0xFF000000
+            print(f"    _wagner_rom.palette[{i}] = {c}u;")
+except Exception as e: pass
+' >> assets.h
+        fi
+    fi
+    echo "}" >> assets.h
+
     # Detect which decoders are needed and add their source + include paths
     local decoder_c_files=""
     local decoder_inc="-I${WAGNER_DIR}/lib/include"

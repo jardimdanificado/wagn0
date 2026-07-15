@@ -115,9 +115,11 @@ typedef struct {
     // If 0, the host treats the buffer as missing.
     uint32_t vram_offset;
     uint32_t audio_buffer_offset;
+    uint32_t palette_offset;
+    uint32_t palette_count;
 
     // --- I/O Operations (ROM writes, Host reads/writes) ---
-    uint8_t  reserved[40];
+    uint8_t  reserved[32];
 } WagnosticState;
 
 typedef struct {

@@ -24,9 +24,12 @@
 #include "wagnostic.h"
 
 // Wagnostic new API: ROM must provide a WagnosticState struct
+#define WAGNER_VRAM_SIZE (WAGNER_CFG_BPP >= 8 ? (WAGNER_CFG_W * WAGNER_CFG_H * (WAGNER_CFG_BPP == 24 ? 3 : (WAGNER_CFG_BPP / 8))) : ((WAGNER_CFG_W * WAGNER_CFG_H * WAGNER_CFG_BPP + 7) / 8))
+
 static struct {
     WagnosticState state;
-    uint8_t vram[WAGNER_CFG_W * WAGNER_CFG_H * (WAGNER_CFG_BPP == 24 ? 3 : (WAGNER_CFG_BPP / 8))]; // 24bpp→3, 32→4, 16→2, 8→1
+    uint32_t palette[256];
+    uint8_t vram[WAGNER_VRAM_SIZE];
     uint8_t audio_buffer[16384];
 } _wagner_rom;
 
@@ -157,6 +160,12 @@ Canvas screen;
 // ============================================
 // MATH CONSTANTS
 // ============================================
+
+static inline void w_set_palette(int index, uint32_t color) {
+    if (index >= 0 && index < 256) {
+        _wagner_rom.palette[index] = color;
+    }
+}
 
 #define PI 3.14159265358979f
 #define TWO_PI 6.28318530717959f
@@ -747,9 +756,16 @@ static inline Color _pixel_to_rgba(Canvas img, int index) {
     } else if (img.bpp == 16) {
         uint16_t p = ((uint16_t*)img.pixels)[index];
         c.r = ((p>>11)&0x1F)*255/31; c.g = ((p>>5)&0x3F)*255/63; c.b = (p&0x1F)*255/31;
-    } else {
+    } else if (img.bpp == 8) {
         uint8_t p = ((uint8_t*)img.pixels)[index];
         c.r = ((p>>5)&7)*255/7; c.g = ((p>>2)&7)*255/7; c.b = (p&3)*255/3;
+    } else {
+        // Fallback for bpp < 8
+        Olivec_Canvas oc = { img.pixels, (size_t)img.width, (size_t)img.height, (size_t)img.stride, img.bpp };
+        int px = index % img.stride;
+        int py = index / img.stride;
+        uint32_t p = olivec_get_pixel(oc, px, py);
+        c.r = p; c.g = p; c.b = p;
     }
     return c;
 }
@@ -761,23 +777,20 @@ static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t 
         uint8_t* p = &((uint8_t*)c.pixels)[(y * c.stride + x) * 3];
         p[0] = r; p[1] = g; p[2] = b;
     } else if (c.bpp == 16) ((uint16_t*)c.pixels)[y * c.stride + x] = ((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);
-    else ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
+    else if (c.bpp == 8) ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
+    else {
+        // Fallback for bpp < 8
+        Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+        olivec_set_pixel(oc, x, y, (uint32_t)r);
+    }
 }
 
 void clear(void) {
     Canvas c = _wagner_get_target();
     WagnerRenderState* state = _wagner_current_state();
     if (!state->has_fill) return;
-    pixel_t color = state->fill_color;
-    size_t n = (size_t)c.width * c.height;
-    if (c.bpp == 32) { uint32_t* p = (uint32_t*)c.pixels; while (n--) *p++ = (uint32_t)color; }
-    else if (c.bpp == 24) {
-        uint8_t* p = (uint8_t*)c.pixels;
-        uint8_t r = color & 0xFF, g = (color >> 8) & 0xFF, b = (color >> 16) & 0xFF;
-        while (n--) { *p++ = r; *p++ = g; *p++ = b; }
-    }
-    else if (c.bpp == 16) { uint16_t* p = (uint16_t*)c.pixels; while (n--) *p++ = (uint16_t)color; }
-    else { uint8_t* p = (uint8_t*)c.pixels; while (n--) *p++ = (uint8_t)color; }
+    Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
+    olivec_fill(oc, state->fill_color);
 }
 
 
@@ -1283,8 +1296,11 @@ int wupdate() {
         wagner.mouse_pressed = false; wagner.mouse_released = false;
         wagner.mouse_down = false;
         
-        _wagner_rom.state.vram_offset = sizeof(WagnosticState);
-        _wagner_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagner_rom.vram);
+        _wagner_rom.state.vram_offset = sizeof(WagnosticState) + sizeof(_wagner_rom.palette);
+        _wagner_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagner_rom.palette) + sizeof(_wagner_rom.vram);
+        _wagner_rom.state.palette_offset = (WAGNER_CFG_BPP < 8) ? sizeof(WagnosticState) : 0;
+        _wagner_rom.state.palette_count = (WAGNER_CFG_BPP < 8) ? (1 << WAGNER_CFG_BPP) : 0;
+        _wagner_config_init_palette();
         wagner.canvas_pixels = w_vram;
         screen.pixels = w_vram; screen.width = 320; screen.height = 240;
         screen.stride = 320; screen.bpp = 16;

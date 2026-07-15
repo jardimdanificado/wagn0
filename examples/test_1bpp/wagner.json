@@ -1,0 +1,11 @@
+{
+  "name": "test_1bpp",
+  "width": 320,
+  "height": 240,
+  "scale": 2,
+  "bpp": 1,
+  "palette": [
+    "#000000",
+    "#ffffff"
+  ]
+}
