@@ -29,6 +29,9 @@ to the canvas format automatically.
 
 | `w_setup` BPP | Pixel format | Canvas buffer |
 |---|---|---|
+| 1   | Indexed (2 colors) | 1 byte per 8 pixels |
+| 2   | Indexed (4 colors) | 1 byte per 4 pixels |
+| 4   | Indexed (16 colors) | 1 byte per 2 pixels |
 | 8   | RGB332 | 1 byte per pixel |
 | 16  | RGB565 | 2 bytes per pixel |
 | 24  | RGB888 | 3 bytes per pixel |
@@ -41,6 +44,26 @@ to the canvas format by the drawing functions:
 fill(rgb(255, 0, 0));    // red in any BPP
 fill(0xFFFF0000);        // same, raw ARGB
 ```
+
+### Palettes (1, 2, and 4 BPP)
+
+For sub-byte formats (1, 2, and 4 BPP), the engine uses a color palette.
+You can define your own palette using hex color codes directly in `wagner.json`:
+
+```json
+{
+  "name": "my_retro_game",
+  "bpp": 4,
+  "palette": [
+    "#000000", "#0000aa", "#00aa00", "#00aaaa",
+    "#aa0000", "#aa00aa", "#aa5500", "#aaaaaa",
+    "#555555", "#5555ff", "#55ff55", "#55ffff",
+    "#ff5555", "#ff55ff", "#ffff55", "#ffffff"
+  ]
+}
+```
+
+The palette size must match the maximum colors available for the depth (2 for 1bpp, 4 for 2bpp, 16 for 4bpp). The Wagner build script will automatically compile this palette into your ROM (`assets.h`).
 
 ## Rendering (State-Machine API)
 
