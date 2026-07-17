@@ -17,53 +17,35 @@ void draw() {
 }
 ```
 
-## Bit Depth
+## Bit Depth and Format
 
 ```c
 #include "wagner.h"
 ```
 
-`pixel_t` is always `uint32_t` (RGBA8888). The canvas BPP is set at
-runtime via `w_setup()` and `wagner.json`. All drawing functions convert
+`pixel_t` is `uint64_t`. The canvas BPP and format are set at
+compile time via `wagner.json` using the `"format"` property. All drawing functions convert
 to the canvas format automatically.
 
-| `w_setup` BPP | Pixel format | Canvas buffer |
-|---|---|---|
-| 1   | Indexed (2 colors) | 1 byte per 8 pixels |
-| 2   | Indexed (4 colors) | 1 byte per 4 pixels |
-| 4   | Indexed (16 colors) | 1 byte per 2 pixels |
-| 8   | RGB332 | 1 byte per pixel |
-| 16  | RGB565 | 2 bytes per pixel |
-| 24  | RGB888 | 3 bytes per pixel |
-| 32  | RGBA8888 | 4 bytes per pixel |
+You can specify arbitrary bitfield layouts (e.g. `R5G6B5`, `A4`, `X8R8G8B8`, `RGBA16161616`).
+The compiler will pack pixels to the nearest power-of-two BPP (1, 2, 4, 8, 16, 24, 32, 64).
+
+If you only specify an Alpha channel (like `A1`, `A4`, `A8`), the engine operates in **Grayscale Mode**, mapping Luminance into the A channel.
+
+```json
+{
+  "name": "my_retro_game",
+  "format": "R5G6B5"
+}
+```
 
 Colors are always specified as RGBA8888 (`0xAABBGGRR`) and converted
 to the canvas format by the drawing functions:
 
 ```c
 fill(rgb(255, 0, 0));    // red in any BPP
-fill(0xFFFF0000);        // same, raw ARGB
+fill(rgba(255, 0, 0, 128)); // red with 50% alpha
 ```
-
-### Palettes (1, 2, and 4 BPP)
-
-For sub-byte formats (1, 2, and 4 BPP), the engine uses a color palette.
-You can define your own palette using hex color codes directly in `wagner.json`:
-
-```json
-{
-  "name": "my_retro_game",
-  "bpp": 4,
-  "palette": [
-    "#000000", "#0000aa", "#00aa00", "#00aaaa",
-    "#aa0000", "#aa00aa", "#aa5500", "#aaaaaa",
-    "#555555", "#5555ff", "#55ff55", "#55ffff",
-    "#ff5555", "#ff55ff", "#ffff55", "#ffffff"
-  ]
-}
-```
-
-The palette size must match the maximum colors available for the depth (2 for 1bpp, 4 for 2bpp, 16 for 4bpp). The Wagner build script will automatically compile this palette into your ROM (`assets.h`).
 
 ## Rendering (State-Machine API)
 

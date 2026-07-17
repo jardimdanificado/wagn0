@@ -33,17 +33,75 @@ EOF
 # ── JSON helpers ─────────────────────────────────────────────────────────────
 
 load_config() {
-    NAME=""; WIDTH=320; HEIGHT=240; SCALE=4; BPP=16; MEMORY=8388608; SRC=""
+    NAME=""; WIDTH=320; HEIGHT=240; SCALE=4; MEMORY=8388608; SRC=""
+    FORMAT=""
+    BPP_VAL=""
     [ -f wagner.json ] || return 0
     local tmp
     tmp=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' wagner.json 2>/dev/null) && NAME="${tmp#*:}" && NAME="${NAME# }" && NAME="${NAME#\"}" && NAME="${NAME%\"}"
     tmp=$(grep -o '"width"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && WIDTH="${tmp#*:}" && WIDTH="${WIDTH# }"
     tmp=$(grep -o '"height"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && HEIGHT="${tmp#*:}" && HEIGHT="${HEIGHT# }"
     tmp=$(grep -o '"scale"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && SCALE="${tmp#*:}" && SCALE="${SCALE# }"
-    tmp=$(grep -o '"bpp"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && BPP="${tmp#*:}" && BPP="${BPP# }"
+    tmp=$(grep -o '"format"[[:space:]]*:[[:space:]]*"[^"]*"' wagner.json 2>/dev/null) && FORMAT="${tmp#*:}" && FORMAT="${FORMAT# }" && FORMAT="${FORMAT#\"}" && FORMAT="${FORMAT%\"}"
+    tmp=$(grep -o '"bpp"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && BPP_VAL="${tmp#*:}" && BPP_VAL="${BPP_VAL# }"
     tmp=$(grep -o '"memory"[[:space:]]*:[[:space:]]*[0-9]*' wagner.json 2>/dev/null) && MEMORY="${tmp#*:}" && MEMORY="${MEMORY# }"
     SRC=$(grep -oP '"[^"]*\.c"' wagner.json 2>/dev/null | sed 's/"//g' | tr '\n' ' ' || true)
     [ -n "$NAME" ] || NAME="$(basename "$(pwd)")"
+
+    if [ -z "$FORMAT" ]; then
+        if [ "$BPP_VAL" = "32" ]; then FORMAT="X8R8G8B8"
+        elif [ "$BPP_VAL" = "24" ]; then FORMAT="R8G8B8"
+        elif [ "$BPP_VAL" = "16" ]; then FORMAT="R5G6B5"
+        elif [ "$BPP_VAL" = "8" ]; then FORMAT="R3G3B2"
+        elif [ -n "$BPP_VAL" ]; then FORMAT="A${BPP_VAL}"
+        else FORMAT="X8R8G8B8"
+        fi
+    fi
+
+    export BPP_VAL
+    if command -v python3 >/dev/null 2>&1; then
+        eval $(python3 -c "
+import re
+fmt = '$FORMAT'
+matches = re.findall(r'([XRGBA])([0-9]+)', fmt, re.IGNORECASE)
+channels = {'R': (0,0), 'G': (0,0), 'B': (0,0), 'A': (0,0)}
+shift = 0; bits = 0
+for ch, b in reversed(matches):
+    ch = ch.upper()
+    b = int(b)
+    if ch in channels: channels[ch] = (b, shift)
+    shift += b
+    bits += b
+
+# If BPP_VAL is provided in the env and it matches our bits (or format wasn't explicitly given)
+import os
+bpp_val_env = os.environ.get('BPP_VAL', '')
+if bpp_val_env and not matches:
+    try:
+        bpp = int(bpp_val_env)
+    except:
+        bpp = next((x for x in [1,2,4,8,16,24,32,64] if x >= bits), 64)
+else:
+    bpp = next((x for x in [1,2,4,8,16,24,32,64] if x >= bits), 64)
+
+# Handle grayscale / 1bpp by zeroing out colors if A=BPP
+if bpp < 8 and bpp_val_env:
+    channels['A'] = (bpp, 0)
+    channels['R'] = (0, 0)
+    channels['G'] = (0, 0)
+    channels['B'] = (0, 0)
+
+print(f'BPP={bpp}')
+for c in 'RGBA':
+    print(f'{c}_BITS={channels[c][0]}; {c}_SHIFT={channels[c][1]}')
+")
+    else
+        BPP=${BPP_VAL:-32}
+        R_BITS=8; R_SHIFT=16
+        G_BITS=8; G_SHIFT=8
+        B_BITS=8; B_SHIFT=0
+        A_BITS=0; A_SHIFT=0
+    fi
 }
 
 # ── Host finder ──────────────────────────────────────────────────────────────
@@ -122,23 +180,7 @@ build_wasm() {
     echo "};" >> assets.h
     echo "static const int WAGNER_ASSET_COUNT = ${asset_count};" >> assets.h
 
-    echo "static inline void _wagner_config_init_palette() {" >> assets.h
-    if [ -f wagner.json ]; then
-        if command -v python3 >/dev/null 2>&1; then
-            python3 -c '
-import json, sys
-try:
-    with open("wagner.json") as f: d = json.load(f)
-    if "palette" in d:
-        for i, c in enumerate(d["palette"]):
-            if isinstance(c, str) and c.startswith("#"):
-                c = int(c[1:], 16) | 0xFF000000
-            print(f"    _wagner_rom.palette[{i}] = {c}u;")
-except Exception as e: pass
-' >> assets.h
-        fi
-    fi
-    echo "}" >> assets.h
+
 
     # Detect which decoders are needed and add their source + include paths
     local decoder_c_files=""
@@ -171,7 +213,11 @@ except Exception as e: pass
     # cost is small (~3KB) and keeps the WASM zero-import.
     decoder_c_files="$decoder_c_files $shim_c"
 
-    local config_flags="-DWAGNER_TITLE=\"$NAME\" -DWAGNER_CFG_W=$WIDTH -DWAGNER_CFG_H=$HEIGHT -DWAGNER_CFG_BPP=$BPP -DWAGNER_CFG_SCALE=$SCALE"
+    local config_flags="-DWAGNER_TITLE=\"$NAME\" -DWAGNER_CFG_W=$WIDTH -DWAGNER_CFG_H=$HEIGHT -DWAGNER_CFG_BPP=$BPP -DWAGNER_CFG_SCALE=$SCALE \
+        -DWAGNER_CFG_R_BITS=$R_BITS -DWAGNER_CFG_R_SHIFT=$R_SHIFT \
+        -DWAGNER_CFG_G_BITS=$G_BITS -DWAGNER_CFG_G_SHIFT=$G_SHIFT \
+        -DWAGNER_CFG_B_BITS=$B_BITS -DWAGNER_CFG_B_SHIFT=$B_SHIFT \
+        -DWAGNER_CFG_A_BITS=$A_BITS -DWAGNER_CFG_A_SHIFT=$A_SHIFT"
 
     if ! "$clang" --target=wasm32 -nostdlib -fno-delete-null-pointer-checks \
         $opt -w $INCLUDE_DIR -I. $decoder_inc $config_flags \

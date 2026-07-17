@@ -78,7 +78,7 @@ typedef struct {
     // --- Screen Configuration (ROM writes, Host reads) ---
     uint32_t width;
     uint32_t height;
-    uint32_t bpp;
+    uint32_t bpp; // (Default: 32 / RGBA8888 if 0 or omitted)
     uint32_t scale;
     char title[128];
 
@@ -115,11 +115,17 @@ typedef struct {
     // If 0, the host treats the buffer as missing.
     uint32_t vram_offset;
     uint32_t audio_buffer_offset;
-    uint32_t palette_offset;
-    uint32_t palette_count;
+    uint32_t r_bits;
+    uint32_t r_shift;
+    uint32_t g_bits;
+    uint32_t g_shift;
+    uint32_t b_bits;
+    uint32_t b_shift;
+    uint32_t a_bits;
+    uint32_t a_shift;
 
     // --- I/O Operations (ROM writes, Host reads/writes) ---
-    uint8_t  reserved[32];
+    uint8_t  reserved[8];
 } WagnosticState;
 
 typedef struct {

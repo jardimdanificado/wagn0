@@ -23,12 +23,66 @@
 #define WAGNOSTIC_IMPLEMENTATION
 #include "wagnostic.h"
 
+// Default Configuration (RGBA8888, 320x240)
+#ifndef WAGNER_CFG_W
+#define WAGNER_CFG_W 320
+#endif
+#ifndef WAGNER_CFG_H
+#define WAGNER_CFG_H 240
+#endif
+#ifndef WAGNER_CFG_BPP
+#define WAGNER_CFG_BPP 32
+#endif
+#ifndef WAGNER_CFG_SCALE
+#define WAGNER_CFG_SCALE 2
+#endif
+
+// Default Color Precision for 32-bit (RGBA8888) if nothing is defined
+#ifndef WAGNER_CFG_R_BITS
+    #if WAGNER_CFG_BPP == 32
+        #define WAGNER_CFG_R_BITS 8
+        #define WAGNER_CFG_R_SHIFT 0
+        #define WAGNER_CFG_G_BITS 8
+        #define WAGNER_CFG_G_SHIFT 8
+        #define WAGNER_CFG_B_BITS 8
+        #define WAGNER_CFG_B_SHIFT 16
+        #define WAGNER_CFG_A_BITS 8
+        #define WAGNER_CFG_A_SHIFT 24
+    #elif WAGNER_CFG_BPP == 16
+        #define WAGNER_CFG_R_BITS 5
+        #define WAGNER_CFG_R_SHIFT 11
+        #define WAGNER_CFG_G_BITS 6
+        #define WAGNER_CFG_G_SHIFT 5
+        #define WAGNER_CFG_B_BITS 5
+        #define WAGNER_CFG_B_SHIFT 0
+        #define WAGNER_CFG_A_BITS 0
+        #define WAGNER_CFG_A_SHIFT 0
+    #elif WAGNER_CFG_BPP == 8
+        #define WAGNER_CFG_R_BITS 3
+        #define WAGNER_CFG_R_SHIFT 5
+        #define WAGNER_CFG_G_BITS 3
+        #define WAGNER_CFG_G_SHIFT 2
+        #define WAGNER_CFG_B_BITS 2
+        #define WAGNER_CFG_B_SHIFT 0
+        #define WAGNER_CFG_A_BITS 0
+        #define WAGNER_CFG_A_SHIFT 0
+    #else
+        #define WAGNER_CFG_R_BITS 0
+        #define WAGNER_CFG_R_SHIFT 0
+        #define WAGNER_CFG_G_BITS 0
+        #define WAGNER_CFG_G_SHIFT 0
+        #define WAGNER_CFG_B_BITS 0
+        #define WAGNER_CFG_B_SHIFT 0
+        #define WAGNER_CFG_A_BITS WAGNER_CFG_BPP
+        #define WAGNER_CFG_A_SHIFT 0
+    #endif
+#endif
+
 // Wagnostic new API: ROM must provide a WagnosticState struct
 #define WAGNER_VRAM_SIZE (WAGNER_CFG_BPP >= 8 ? (WAGNER_CFG_W * WAGNER_CFG_H * (WAGNER_CFG_BPP == 24 ? 3 : (WAGNER_CFG_BPP / 8))) : ((WAGNER_CFG_W * WAGNER_CFG_H * WAGNER_CFG_BPP + 7) / 8))
 
 static struct {
     WagnosticState state;
-    uint32_t palette[256];
     uint8_t vram[WAGNER_VRAM_SIZE];
     uint8_t audio_buffer[16384];
 } _wagner_rom;
@@ -57,30 +111,36 @@ static struct {
 
 // pixel_t is always uint32_t. Runtime BPP (8/16/32) is handled by
 // Canvas.bpp and olivec_set_pixel — no compile-time choice needed.
-typedef uint32_t pixel_t;
+typedef uint64_t pixel_t;
 
 // ============================================
 // COLOR CONVERSION (input → pixel_t)
 // ============================================
 
 static inline pixel_t rgb(uint8_t r, uint8_t g, uint8_t b) {
-#if WAGNER_CFG_BPP == 16
-    return (uint32_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-#elif WAGNER_CFG_BPP == 8
-    return (uint32_t)(((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6));
-#else
-    return (uint32_t)((0xFF << 24) | ((b) << 16) | ((g) << 8) | (r));
-#endif
+    uint64_t px = 0;
+    if (WAGNER_CFG_R_BITS) px |= (((uint64_t)r >> (8 - WAGNER_CFG_R_BITS)) << WAGNER_CFG_R_SHIFT);
+    if (WAGNER_CFG_G_BITS) px |= (((uint64_t)g >> (8 - WAGNER_CFG_G_BITS)) << WAGNER_CFG_G_SHIFT);
+    if (WAGNER_CFG_B_BITS) px |= (((uint64_t)b >> (8 - WAGNER_CFG_B_BITS)) << WAGNER_CFG_B_SHIFT);
+    if (WAGNER_CFG_A_BITS) px |= (((uint64_t)255 >> (8 - WAGNER_CFG_A_BITS)) << WAGNER_CFG_A_SHIFT);
+    if (!WAGNER_CFG_R_BITS && !WAGNER_CFG_G_BITS && !WAGNER_CFG_B_BITS && WAGNER_CFG_A_BITS) {
+        uint8_t lum = (uint8_t)(((uint32_t)r * 299 + (uint32_t)g * 587 + (uint32_t)b * 114) / 1000);
+        px |= (((uint64_t)lum >> (8 - WAGNER_CFG_A_BITS)) << WAGNER_CFG_A_SHIFT);
+    }
+    return (pixel_t)px;
 }
 
 static inline pixel_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-#if WAGNER_CFG_BPP == 16
-    return (uint32_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-#elif WAGNER_CFG_BPP == 8
-    return (uint32_t)(((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6));
-#else
-    return (uint32_t)(((a) << 24) | ((b) << 16) | ((g) << 8) | (r));
-#endif
+    uint64_t px = 0;
+    if (WAGNER_CFG_R_BITS) px |= (((uint64_t)r >> (8 - WAGNER_CFG_R_BITS)) << WAGNER_CFG_R_SHIFT);
+    if (WAGNER_CFG_G_BITS) px |= (((uint64_t)g >> (8 - WAGNER_CFG_G_BITS)) << WAGNER_CFG_G_SHIFT);
+    if (WAGNER_CFG_B_BITS) px |= (((uint64_t)b >> (8 - WAGNER_CFG_B_BITS)) << WAGNER_CFG_B_SHIFT);
+    if (WAGNER_CFG_A_BITS) px |= (((uint64_t)a >> (8 - WAGNER_CFG_A_BITS)) << WAGNER_CFG_A_SHIFT);
+    if (!WAGNER_CFG_R_BITS && !WAGNER_CFG_G_BITS && !WAGNER_CFG_B_BITS && WAGNER_CFG_A_BITS) {
+        uint8_t lum = (uint8_t)(((uint32_t)r * 299 + (uint32_t)g * 587 + (uint32_t)b * 114) / 1000);
+        px |= (((uint64_t)lum >> (8 - WAGNER_CFG_A_BITS)) << WAGNER_CFG_A_SHIFT);
+    }
+    return (pixel_t)px;
 }
 
 // Predefined colors — always pixel_t
@@ -119,7 +179,7 @@ typedef struct {
 
 // Rect is defined in wagnostic.h
 
-typedef struct { void* pixels; int width; int height; int stride; uint8_t bpp; } Canvas;
+typedef struct { void* pixels; int width; int height; int stride; uint8_t bpp; uint8_t r_bits, r_shift, g_bits, g_shift, b_bits, b_shift, a_bits, a_shift; } Canvas;
 
 // ============================================
 // GLOBAL STATE (managed by WagnO)
@@ -161,11 +221,6 @@ Canvas screen;
 // MATH CONSTANTS
 // ============================================
 
-static inline void w_set_palette(int index, uint32_t color) {
-    if (index >= 0 && index < 256) {
-        _wagner_rom.palette[index] = color;
-    }
-}
 
 #define PI 3.14159265358979f
 #define TWO_PI 6.28318530717959f
@@ -744,44 +799,74 @@ static inline int _wagner_is_axis_aligned(void) {
     return (wabs(m->b) < 0.001f && wabs(m->c) < 0.001f);
 }
 
-// Helper: read a pixel from any image/Canvas and return RGBA components
 static inline Color _pixel_to_rgba(Canvas img, int index) {
     Color c = {0,0,0,255};
-    if (img.bpp == 32) {
-        uint32_t p = ((uint32_t*)img.pixels)[index];
-        c.r = p & 0xFF; c.g = (p>>8)&0xFF; c.b = (p>>16)&0xFF; c.a = (p>>24)&0xFF;
-    } else if (img.bpp == 24) {
+    uint64_t px = 0;
+    if (img.bpp == 32) px = ((uint32_t*)img.pixels)[index];
+    else if (img.bpp == 24) {
         uint8_t* p = &((uint8_t*)img.pixels)[index * 3];
-        c.r = p[0]; c.g = p[1]; c.b = p[2]; c.a = 255;
-    } else if (img.bpp == 16) {
-        uint16_t p = ((uint16_t*)img.pixels)[index];
-        c.r = ((p>>11)&0x1F)*255/31; c.g = ((p>>5)&0x3F)*255/63; c.b = (p&0x1F)*255/31;
-    } else if (img.bpp == 8) {
-        uint8_t p = ((uint8_t*)img.pixels)[index];
-        c.r = ((p>>5)&7)*255/7; c.g = ((p>>2)&7)*255/7; c.b = (p&3)*255/3;
-    } else {
-        // Fallback for bpp < 8
+        px = p[0] | (p[1]<<8) | (p[2]<<16);
+    }
+    else if (img.bpp == 16) px = ((uint16_t*)img.pixels)[index];
+    else if (img.bpp == 8) px = ((uint8_t*)img.pixels)[index];
+    else {
         Olivec_Canvas oc = { img.pixels, (size_t)img.width, (size_t)img.height, (size_t)img.stride, img.bpp };
-        int px = index % img.stride;
-        int py = index / img.stride;
-        uint32_t p = olivec_get_pixel(oc, px, py);
-        c.r = p; c.g = p; c.b = p;
+        int px_x = index % img.stride;
+        int py_y = index / img.stride;
+        px = olivec_get_pixel(oc, px_x, py_y);
+    }
+    
+    if (!img.r_bits && !img.g_bits && !img.b_bits) {
+        if (img.a_bits) {
+            uint8_t lum = (uint8_t)(((px >> img.a_shift) & ((1ULL << img.a_bits) - 1)) * 255 / ((1ULL << img.a_bits) - 1));
+            c.r = c.g = c.b = lum;
+            c.a = 255;
+        }
+    } else {
+        if (img.r_bits) c.r = (uint8_t)(((px >> img.r_shift) & ((1ULL << img.r_bits) - 1)) * 255 / ((1ULL << img.r_bits) - 1));
+        if (img.g_bits) c.g = (uint8_t)(((px >> img.g_shift) & ((1ULL << img.g_bits) - 1)) * 255 / ((1ULL << img.g_bits) - 1));
+        if (img.b_bits) c.b = (uint8_t)(((px >> img.b_shift) & ((1ULL << img.b_bits) - 1)) * 255 / ((1ULL << img.b_bits) - 1));
+        if (img.a_bits) c.a = (uint8_t)(((px >> img.a_shift) & ((1ULL << img.a_bits) - 1)) * 255 / ((1ULL << img.a_bits) - 1));
+        else c.a = 255;
     }
     return c;
 }
 
 static inline void _canvas_set_pixel(Canvas c, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     if (x < 0 || x >= c.width || y < 0 || y >= c.height) return;
-    if (c.bpp == 32) ((uint32_t*)c.pixels)[y * c.stride + x] = r | (g<<8) | (b<<16) | (a<<24);
+    uint64_t px = 0;
+    if (c.r_bits) px |= (((uint64_t)r >> (8 - c.r_bits)) << c.r_shift);
+    if (c.g_bits) px |= (((uint64_t)g >> (8 - c.g_bits)) << c.g_shift);
+    if (c.b_bits) px |= (((uint64_t)b >> (8 - c.b_bits)) << c.b_shift);
+    if (c.a_bits) px |= (((uint64_t)a >> (8 - c.a_bits)) << c.a_shift);
+    if (!c.r_bits && !c.g_bits && !c.b_bits && c.a_bits) {
+        uint8_t lum = (uint8_t)(((uint32_t)r * 299 + (uint32_t)g * 587 + (uint32_t)b * 114) / 1000);
+        px |= (((uint64_t)lum >> (8 - c.a_bits)) << c.a_shift);
+    }
+    
+    size_t idx = y * c.stride + x;
+    if (c.bpp == 64) ((uint64_t*)c.pixels)[idx] = px;
+    else if (c.bpp == 32) ((uint32_t*)c.pixels)[idx] = (uint32_t)px;
     else if (c.bpp == 24) {
-        uint8_t* p = &((uint8_t*)c.pixels)[(y * c.stride + x) * 3];
-        p[0] = r; p[1] = g; p[2] = b;
-    } else if (c.bpp == 16) ((uint16_t*)c.pixels)[y * c.stride + x] = ((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3);
-    else if (c.bpp == 8) ((uint8_t*)c.pixels)[y * c.stride + x] = ((r&0xE0)|((g&0xE0)>>3)|((b&0xC0)>>6));
-    else {
-        // Fallback for bpp < 8
-        Olivec_Canvas oc = { c.pixels, (size_t)c.width, (size_t)c.height, (size_t)c.stride, c.bpp };
-        olivec_set_pixel(oc, x, y, (uint32_t)r);
+        uint8_t* p = &((uint8_t*)c.pixels)[idx * 3];
+        p[0] = px & 0xFF; p[1] = (px >> 8) & 0xFF; p[2] = (px >> 16) & 0xFF;
+    }
+    else if (c.bpp == 16) ((uint16_t*)c.pixels)[idx] = (uint16_t)px;
+    else if (c.bpp == 8) ((uint8_t*)c.pixels)[idx] = (uint8_t)px;
+    else if (c.bpp == 4) {
+        uint8_t *p = (uint8_t*)c.pixels;
+        if (idx % 2 == 0) p[idx / 2] = (p[idx / 2] & 0x0F) | (px << 4);
+        else              p[idx / 2] = (p[idx / 2] & 0xF0) | (px & 0x0F);
+    }
+    else if (c.bpp == 2) {
+        uint8_t *p = (uint8_t*)c.pixels;
+        int shift = 6 - (idx % 4) * 2;
+        p[idx / 4] = (p[idx / 4] & ~(0x03 << shift)) | ((px & 0x03) << shift);
+    }
+    else if (c.bpp == 1) {
+        uint8_t *p = (uint8_t*)c.pixels;
+        int shift = 7 - (idx % 8);
+        p[idx / 8] = (p[idx / 8] & ~(1 << shift)) | ((px & 1) << shift);
     }
 }
 
@@ -1092,15 +1177,22 @@ int text_width(const char* text_str) {
 // ============================================
 
 Canvas canvas_create(int w, int h, int bpp) {
-    size_t bpp_bytes = (bpp == 24) ? 3 : (bpp / 8);
-    void* px = malloc((size_t)w * h * bpp_bytes);
+    void* px = malloc(w * h * ((bpp + 7) / 8));
     if (!px) return (Canvas){0};
-    Canvas c = { px, w, h, w, (uint8_t)bpp };
+    Canvas c = { px, w, h, w, (uint8_t)bpp, 
+                 (uint8_t)WAGNER_CFG_R_BITS, (uint8_t)WAGNER_CFG_R_SHIFT,
+                 (uint8_t)WAGNER_CFG_G_BITS, (uint8_t)WAGNER_CFG_G_SHIFT,
+                 (uint8_t)WAGNER_CFG_B_BITS, (uint8_t)WAGNER_CFG_B_SHIFT,
+                 (uint8_t)WAGNER_CFG_A_BITS, (uint8_t)WAGNER_CFG_A_SHIFT };
     return c;
 }
 
 Canvas img_create(const void* data, int width, int height, int bpp) {
-    Canvas img = { (void*)data, width, height, width, (uint8_t)bpp };
+    Canvas img = { (void*)data, width, height, width, (uint8_t)bpp,
+                   (uint8_t)WAGNER_CFG_R_BITS, (uint8_t)WAGNER_CFG_R_SHIFT,
+                   (uint8_t)WAGNER_CFG_G_BITS, (uint8_t)WAGNER_CFG_G_SHIFT,
+                   (uint8_t)WAGNER_CFG_B_BITS, (uint8_t)WAGNER_CFG_B_SHIFT,
+                   (uint8_t)WAGNER_CFG_A_BITS, (uint8_t)WAGNER_CFG_A_SHIFT };
     return img;
  }
 
@@ -1136,7 +1228,12 @@ Canvas img_load(const uint8_t* data, size_t size) {
     uint8_t* decoded = 0;
     unsigned w, h;
     if (lodepng_decode32(&decoded, &w, &h, data, size)) return (Canvas){0};
-    return (Canvas){ .pixels = decoded, .width = (int)w, .height = (int)h, .stride = (int)w, .bpp = 32 };
+    Canvas c = { .pixels = decoded, .width = (int)w, .height = (int)h, .stride = (int)w, .bpp = 32,
+                 .r_bits = 8, .r_shift = 0,
+                 .g_bits = 8, .g_shift = 8,
+                 .b_bits = 8, .b_shift = 16,
+                 .a_bits = 8, .a_shift = 24 };
+    return c;
 }
 #endif
 
@@ -1296,14 +1393,24 @@ int wupdate() {
         wagner.mouse_pressed = false; wagner.mouse_released = false;
         wagner.mouse_down = false;
         
-        _wagner_rom.state.vram_offset = sizeof(WagnosticState) + sizeof(_wagner_rom.palette);
-        _wagner_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagner_rom.palette) + sizeof(_wagner_rom.vram);
-        _wagner_rom.state.palette_offset = (WAGNER_CFG_BPP < 8) ? sizeof(WagnosticState) : 0;
-        _wagner_rom.state.palette_count = (WAGNER_CFG_BPP < 8) ? (1 << WAGNER_CFG_BPP) : 0;
-        _wagner_config_init_palette();
+        _wagner_rom.state.vram_offset = sizeof(WagnosticState);
+        _wagner_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagner_rom.vram);
+        _wagner_rom.state.bpp = WAGNER_CFG_BPP;
+        _wagner_rom.state.r_bits = WAGNER_CFG_R_BITS;
+        _wagner_rom.state.r_shift = WAGNER_CFG_R_SHIFT;
+        _wagner_rom.state.g_bits = WAGNER_CFG_G_BITS;
+        _wagner_rom.state.g_shift = WAGNER_CFG_G_SHIFT;
+        _wagner_rom.state.b_bits = WAGNER_CFG_B_BITS;
+        _wagner_rom.state.b_shift = WAGNER_CFG_B_SHIFT;
+        _wagner_rom.state.a_bits = WAGNER_CFG_A_BITS;
+        _wagner_rom.state.a_shift = WAGNER_CFG_A_SHIFT;
         wagner.canvas_pixels = w_vram;
-        screen.pixels = w_vram; screen.width = 320; screen.height = 240;
-        screen.stride = 320; screen.bpp = 16;
+        screen.pixels = w_vram; screen.width = w_width; screen.height = w_height;
+        screen.stride = w_width; screen.bpp = WAGNER_CFG_BPP;
+        screen.r_bits = WAGNER_CFG_R_BITS; screen.r_shift = WAGNER_CFG_R_SHIFT;
+        screen.g_bits = WAGNER_CFG_G_BITS; screen.g_shift = WAGNER_CFG_G_SHIFT;
+        screen.b_bits = WAGNER_CFG_B_BITS; screen.b_shift = WAGNER_CFG_B_SHIFT;
+        screen.a_bits = WAGNER_CFG_A_BITS; screen.a_shift = WAGNER_CFG_A_SHIFT;
         w_setup(&_wagner_rom.state, WAGNER_TITLE, WAGNER_CFG_W, WAGNER_CFG_H, WAGNER_CFG_BPP, WAGNER_CFG_SCALE);
         wagner.width = w_width; wagner.height = w_height;
         wagner.bpp = w_bpp; wagner.scale = w_scale;
