@@ -96,6 +96,7 @@
   let audioCtx      = null;
   let audioProcessor = null;
   let audioEnabled   = false;
+  let audioFrac      = 0;
 
   // Pre-allocated render buffers
   let imageData = null;
@@ -163,6 +164,8 @@
       audioOverrun:    mem.getUint32(ptr + 972, true),
       vramOffset:      mem.getUint32(ptr + 976, true),
       audioBuffer:     mem.getUint32(ptr + 980, true),
+      paletteOffset:   mem.getUint32(ptr + 984, true),
+      paletteCount:    mem.getUint32(ptr + 988, true),
 
     };
   }
@@ -197,13 +200,39 @@
     prevScale  = scale;
   }
 
-  function renderFullFrame(w, h, bpp, vramPtr) {
+  function renderFullFrame(w, h, bpp, vramPtr, palettePtr) {
     initPixelLuts();
 
-    const buf = new Uint8Array(wasmMemory.buffer, vramPtr, w * h * (bpp >> 3));
+    const bufSize = (bpp >= 8) ? w * h * (bpp >> 3) : Math.ceil(w * h * bpp / 8);
+    const buf = new Uint8Array(wasmMemory.buffer, vramPtr, bufSize);
     const pixels = imageData.data;
 
-    if (bpp === 8) {
+    if (bpp === 1) {
+      const u32 = new Uint32Array(pixels.buffer);
+      const pal = new Uint32Array(wasmMemory.buffer, palettePtr, 2);
+      for (let i = 0; i < w * h; i++) {
+        const byte = buf[Math.floor(i / 8)];
+        const bit = (byte >> (7 - (i % 8))) & 1;
+        u32[i] = pal[bit];
+      }
+    } else if (bpp === 2) {
+      const u32 = new Uint32Array(pixels.buffer);
+      const pal = new Uint32Array(wasmMemory.buffer, palettePtr, 4);
+      for (let i = 0; i < w * h; i++) {
+        const byte = buf[Math.floor(i / 4)];
+        const shift = 6 - ((i % 4) * 2);
+        const idx = (byte >> shift) & 3;
+        u32[i] = pal[idx];
+      }
+    } else if (bpp === 4) {
+      const u32 = new Uint32Array(pixels.buffer);
+      const pal = new Uint32Array(wasmMemory.buffer, palettePtr, 16);
+      for (let i = 0; i < w * h; i++) {
+        const byte = buf[Math.floor(i / 2)];
+        const idx = (i % 2 === 0) ? (byte >> 4) : (byte & 0x0F);
+        u32[i] = pal[idx];
+      }
+    } else if (bpp === 8) {
       const u32 = new Uint32Array(pixels.buffer);
       for (let i = 0; i < w * h; i++) {
         u32[i] = rgb332_lut[buf[i]];
@@ -225,7 +254,7 @@
     ctx.putImageData(imageData, 0, 0);
   }
 
-  function renderDirtyRects(w, h, bpp, vramPtr, dirtyCount, dirtyRectsPtr) {
+  function renderDirtyRects(w, h, bpp, vramPtr, dirtyCount, dirtyRectsPtr, palettePtr) {
     initPixelLuts();
     const bppBytes = bpp >> 3;
     const dataView = new DataView(wasmMemory.buffer, dirtyRectsPtr, MAX_DIRTY_RECTS * RECT_STRIDE);
@@ -236,7 +265,7 @@
       dataView.getInt32(12, true) === h;
 
     if (isFullScreen) {
-      renderFullFrame(w, h, bpp, vramPtr);
+      renderFullFrame(w, h, bpp, vramPtr, palettePtr);
       return;
     }
 
@@ -259,7 +288,44 @@
       const rectData = ctx.createImageData(cw, ch);
       const pixels = rectData.data;
 
-      if (bpp === 8) {
+      if (bpp === 1) {
+        const u32 = new Uint32Array(pixels.buffer);
+        const pal = new Uint32Array(wasmMemory.buffer, palettePtr, 2);
+        for (let row = 0; row < ch; row++) {
+          const dstOff = row * cw;
+          for (let col = 0; col < cw; col++) {
+            const srcOff = (cy + row) * w + (cx + col);
+            const byte = new Uint8Array(wasmMemory.buffer, vramPtr + Math.floor(srcOff / 8), 1)[0];
+            const bit = (byte >> (7 - (srcOff % 8))) & 1;
+            u32[dstOff + col] = pal[bit];
+          }
+        }
+      } else if (bpp === 2) {
+        const u32 = new Uint32Array(pixels.buffer);
+        const pal = new Uint32Array(wasmMemory.buffer, palettePtr, 4);
+        for (let row = 0; row < ch; row++) {
+          const dstOff = row * cw;
+          for (let col = 0; col < cw; col++) {
+            const srcOff = (cy + row) * w + (cx + col);
+            const byte = new Uint8Array(wasmMemory.buffer, vramPtr + Math.floor(srcOff / 4), 1)[0];
+            const shift = 6 - ((srcOff % 4) * 2);
+            const idx = (byte >> shift) & 3;
+            u32[dstOff + col] = pal[idx];
+          }
+        }
+      } else if (bpp === 4) {
+        const u32 = new Uint32Array(pixels.buffer);
+        const pal = new Uint32Array(wasmMemory.buffer, palettePtr, 16);
+        for (let row = 0; row < ch; row++) {
+          const dstOff = row * cw;
+          for (let col = 0; col < cw; col++) {
+            const srcOff = (cy + row) * w + (cx + col);
+            const byte = new Uint8Array(wasmMemory.buffer, vramPtr + Math.floor(srcOff / 2), 1)[0];
+            const idx = (srcOff % 2 === 0) ? (byte >> 4) : (byte & 0x0F);
+            u32[dstOff + col] = pal[idx];
+          }
+        }
+      } else if (bpp === 8) {
         const u32 = new Uint32Array(pixels.buffer);
         for (let row = 0; row < ch; row++) {
           const srcOff = (cy + row) * w + cx;
@@ -323,6 +389,7 @@
   // ── Keyboard ───────────────────────────────────────────────────────────
 
   function onKeyDown(e) {
+    resumeAudio();
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     const hid = HID_SCANCODES[e.code];
     if (hid !== undefined) {
@@ -368,6 +435,7 @@
   }
 
   function onMouseDown(e) {
+    resumeAudio();
     if (e.button === 0) mouseButtons |= 1; // left
     if (e.button === 2) mouseButtons |= 2; // right
     e.preventDefault();
@@ -398,6 +466,7 @@
       if (bit === undefined) return;
 
       btn.addEventListener('mousedown', function (e) {
+        resumeAudio();
         gamepadBtns |= bit;
         e.preventDefault();
       });
@@ -410,6 +479,7 @@
       });
       // Touch support
       btn.addEventListener('touchstart', function (e) {
+        resumeAudio();
         gamepadBtns |= bit;
         e.preventDefault();
       });
@@ -422,83 +492,117 @@
 
   // ── Audio ──────────────────────────────────────────────────────────────
 
+  function resumeAudio() {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function () {});
+    }
+  }
+
   function initAudio(sampleRate, channels) {
+    if (audioProcessor) {
+      audioProcessor.disconnect();
+      audioProcessor = null;
+    }
+    if (audioCtx && sampleRate && audioCtx.sampleRate !== sampleRate) {
+      try { audioCtx.close(); } catch (e) {}
+      audioCtx = null;
+    }
     if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      try {
+        if (sampleRate > 0) {
+          audioCtx = new AudioCtx({ sampleRate: sampleRate });
+        } else {
+          audioCtx = new AudioCtx();
+        }
+      } catch (e) {
+        audioCtx = new AudioCtx();
+      }
     }
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
+      audioCtx.resume().catch(function () {});
     }
 
     // Use ScriptProcessorNode for broad compatibility
     const bufferSize = 2048;
     audioProcessor = audioCtx.createScriptProcessor(bufferSize, 0, channels || 1);
     audioEnabled = true;
+    audioFrac = 0;
 
     audioProcessor.onaudioprocess = function (e) {
       if (!wasmInstance || !audioEnabled) return;
 
       const g = readGlobals();
-      if (g.audioSize === 0 || g.audioBpp === 0) return;
+      if (!statePtr || g.audioSize === 0 || g.audioBpp === 0 || !g.audioBuffer) return;
 
-      const writePtr = g.audioWrite;
-      let   readPtr  = g.audioRead;
-      const bufPtr   = g.audioBuffer;
-      const size     = g.audioSize;
-      const bpp      = g.audioBpp;
-      const channels = g.audioChannels || 1;
+      const writePtr   = g.audioWrite;
+      let   readPtr    = g.audioRead;
+      const bufPtr     = statePtr + g.audioBuffer;
+      const size       = g.audioSize;
+      const bpp        = g.audioBpp;
+      const channels   = g.audioChannels || 1;
       const sampleRate = g.audioSampleRate || audioCtx.sampleRate;
+      const frameSize  = bpp * channels;
 
-      // Calculate available BYTES in the ring buffer. This callback
-      // runs on the JS event loop, same as frame() that calls wupdate,
-      // so there is no concurrency — no mutex needed. (Unlike the C
-      // runners, which need SDL_mutex because SDL's audio thread is
-      // real and can preempt the main thread on multi-core.)
       let available = writePtr - readPtr;
       if (available < 0) available += size;
 
       const outputChannels = e.outputBuffer.numberOfChannels;
       const framesPerBuffer = e.outputBuffer.length;
-
+      const outputs = [];
       for (let ch = 0; ch < outputChannels; ch++) {
-        const output = e.outputBuffer.getChannelData(ch);
-        for (let i = 0; i < framesPerBuffer; i++) {
-          if (available < bpp) {
-            output[i] = 0;
-            continue;
-          }
+        outputs.push(e.outputBuffer.getChannelData(ch));
+      }
 
-          // Read one sample from the ring buffer for this channel
-          const sampleByteOff = bufPtr + readPtr;
+      const step = (sampleRate > 0 && audioCtx.sampleRate > 0) ? (sampleRate / audioCtx.sampleRate) : 1.0;
+      const memView = getMem();
+      const u8View = new Uint8Array(wasmMemory.buffer);
+      let underrun = false;
+
+      for (let i = 0; i < framesPerBuffer; i++) {
+        if (available < frameSize) {
+          underrun = true;
+          for (let ch = 0; ch < outputChannels; ch++) {
+            outputs[ch][i] = 0;
+          }
+          continue;
+        }
+
+        for (let ch = 0; ch < outputChannels; ch++) {
           let sample = 0;
-
-          if (bpp === 1) {
-            // u8
-            const raw = new Uint8Array(wasmMemory.buffer, sampleByteOff + ch, 1)[0];
-            sample = (raw - 128) / 128.0;
-          } else if (bpp === 2) {
-            // s16 little-endian
-            const raw = new DataView(wasmMemory.buffer, sampleByteOff + ch * 2, 2).getInt16(0, true);
-            sample = raw / 32768.0;
-          } else if (bpp === 4) {
-            // f32
-            sample = new DataView(wasmMemory.buffer, sampleByteOff + ch * 4, 4).getFloat32(0, true);
+          if (ch < channels) {
+            const sampleByteOff = bufPtr + ((readPtr + ch * bpp) % size);
+            if (bpp === 1) {
+              sample = (u8View[sampleByteOff] - 128) / 128.0;
+            } else if (bpp === 2) {
+              sample = memView.getInt16(sampleByteOff, true) / 32768.0;
+            } else if (bpp === 4) {
+              sample = memView.getFloat32(sampleByteOff, true);
+            }
+          } else if (channels === 1 && ch === 1) {
+            sample = outputs[0][i];
           }
+          outputs[ch][i] = sample;
+        }
 
-          output[i] = sample;
-
-          // Advance read pointer by one interleaved sample frame
-          readPtr += bpp * channels;
-          readPtr %= size;
-          available -= bpp;
+        audioFrac += step;
+        while (audioFrac >= 1.0) {
+          if (available >= frameSize) {
+            readPtr = (readPtr + frameSize) % size;
+            available -= frameSize;
+          } else {
+            underrun = true;
+          }
+          audioFrac -= 1.0;
         }
       }
 
-      // Update the read pointer in WASM memory. Atomic from JS's
-      // single-threaded perspective; the next frame() that calls
-      // wupdate will see the new value.
       if (statePtr) {
-        getMem().setUint32(statePtr + 964, readPtr, true);
+        memView.setUint32(statePtr + 964, readPtr, true);
+        if (underrun) {
+          const uOff = statePtr + 968;
+          memView.setUint32(uOff, memView.getUint32(uOff, true) + 1, true);
+        }
       }
     };
 
@@ -546,17 +650,17 @@
 
     if (w !== prevWidth || h !== prevHeight || bpp !== prevBpp || scale !== prevScale) {
       resizeCanvas(w, h, scale);
-      // Initialize audio if audio globals changed
-      if (g.audioSampleRate > 0 && g.audioBpp > 0 && g.audioChannels > 0) {
-        if (!audioEnabled) {
-          initAudio(g.audioSampleRate, g.audioChannels);
-        }
+    }
+    // Initialize audio if audio globals changed or were enabled after startup
+    if (g.audioSampleRate > 0 && g.audioBpp > 0 && g.audioChannels > 0) {
+      if (!audioEnabled) {
+        initAudio(g.audioSampleRate, g.audioChannels);
       }
     }
 
     // 4. Render dirty rects
     if (g.dirtyCount > 0) {
-      renderDirtyRects(w, h, bpp, statePtr + g.vramOffset, g.dirtyCount, g.dirtyRects);
+      renderDirtyRects(w, h, bpp, statePtr + g.vramOffset, g.dirtyCount, g.dirtyRects, statePtr + g.paletteOffset);
       // Reset dirty count
       getMem().setUint32(statePtr + 144, 0, true);
     }
@@ -714,6 +818,7 @@
 
   // Touch support on canvas for mouse simulation
   canvas.addEventListener('touchstart', function (e) {
+    resumeAudio();
     const touch = e.touches[0];
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
