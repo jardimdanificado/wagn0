@@ -64,7 +64,7 @@ void draw() {
         int py = cy + (int)(sin(a) * r);
         push();
         translate(cx, cy);
-        stroke(lerp_color(BLUE, CYAN, (float)i/7.0f));
+        stroke(lerp_color(RED, YELLOW, (float)i/7.0f));
         line(px - cx, py - cy, 0, 0); // Wait, old line took x1,y1,x2,y2. In state machine line takes x1,y1,x2,y2, but transformed. Wait, my line definition is void line(float x1, float y1, float x2, float y2);
         pop();
     }
@@ -93,7 +93,7 @@ void draw() {
     // Color based on performance
     float ratio = (float)wagner.fps / (float)fps_values[fps_index];
     if (ratio > 1.0f) ratio = 1.0f;
-    pixel_t fps_color = lerp_color(RED, GREEN, ratio);
+    pixel_t fps_color = lerp_color(BLUE, GREEN, ratio);
     draw_number(wagner.fps, 90, 130, fps_color);
     
     draw_str("Delta:", 20, 170, GRAY);

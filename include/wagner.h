@@ -1198,12 +1198,37 @@ Canvas img_create(const void* data, int width, int height, int bpp) {
 
 
 static inline pixel_t lerp_color(pixel_t a, pixel_t b, float t) {
-    uint8_t ar = a & 0xFF,        ag = (a >> 8) & 0xFF,  ab_ = (a >> 16) & 0xFF;
-    uint8_t br = b & 0xFF,        bg = (b >> 8) & 0xFF,  bb_ = (b >> 16) & 0xFF;
+    uint8_t ar = 0, ag = 0, ab_ = 0, aa = 255;
+    uint8_t br = 0, bg = 0, bb_ = 0, ba = 255;
+    
+    if (!WAGNER_CFG_R_BITS && !WAGNER_CFG_G_BITS && !WAGNER_CFG_B_BITS && WAGNER_CFG_A_BITS) {
+        ar = ag = ab_ = (uint8_t)(((a >> WAGNER_CFG_A_SHIFT) & ((1ULL << WAGNER_CFG_A_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_A_BITS) - 1));
+        br = bg = bb_ = (uint8_t)(((b >> WAGNER_CFG_A_SHIFT) & ((1ULL << WAGNER_CFG_A_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_A_BITS) - 1));
+    } else {
+        if (WAGNER_CFG_R_BITS) {
+            ar = (uint8_t)(((a >> WAGNER_CFG_R_SHIFT) & ((1ULL << WAGNER_CFG_R_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_R_BITS) - 1));
+            br = (uint8_t)(((b >> WAGNER_CFG_R_SHIFT) & ((1ULL << WAGNER_CFG_R_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_R_BITS) - 1));
+        }
+        if (WAGNER_CFG_G_BITS) {
+            ag = (uint8_t)(((a >> WAGNER_CFG_G_SHIFT) & ((1ULL << WAGNER_CFG_G_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_G_BITS) - 1));
+            bg = (uint8_t)(((b >> WAGNER_CFG_G_SHIFT) & ((1ULL << WAGNER_CFG_G_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_G_BITS) - 1));
+        }
+        if (WAGNER_CFG_B_BITS) {
+            ab_ = (uint8_t)(((a >> WAGNER_CFG_B_SHIFT) & ((1ULL << WAGNER_CFG_B_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_B_BITS) - 1));
+            bb_ = (uint8_t)(((b >> WAGNER_CFG_B_SHIFT) & ((1ULL << WAGNER_CFG_B_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_B_BITS) - 1));
+        }
+        if (WAGNER_CFG_A_BITS) {
+            aa = (uint8_t)(((a >> WAGNER_CFG_A_SHIFT) & ((1ULL << WAGNER_CFG_A_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_A_BITS) - 1));
+            ba = (uint8_t)(((b >> WAGNER_CFG_A_SHIFT) & ((1ULL << WAGNER_CFG_A_BITS) - 1)) * 255 / ((1ULL << WAGNER_CFG_A_BITS) - 1));
+        }
+    }
+    
     uint8_t r = (uint8_t)(ar + (br - ar) * t);
     uint8_t g = (uint8_t)(ag + (bg - ag) * t);
     uint8_t bv = (uint8_t)(ab_ + (bb_ - ab_) * t);
-    return rgb(r, g, bv);
+    uint8_t av = (uint8_t)(aa + (ba - aa) * t);
+    
+    return rgba(r, g, bv, av);
 }
 
 static inline int text_height(void) {
