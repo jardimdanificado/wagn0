@@ -89,10 +89,55 @@ self.onmessage = async (e) => {
         const title = config.title || "web_repl";
         const w = config.width || 320;
         const h = config.height || 240;
-        const bpp = config.bpp || 32;
-        const scale = config.scale || 2;
         const memoryBytes = config.memory || 16777216;
         const stackSize = memoryBytes;
+        const scale = config.scale || 2;
+        
+        let formatStr = config.format || "";
+        let bppVal = config.bpp || 0;
+        
+        if (!formatStr) {
+            if (bppVal === 32 || bppVal === 0) formatStr = "X8R8G8B8";
+            else if (bppVal === 24) formatStr = "R8G8B8";
+            else if (bppVal === 16) formatStr = "R5G6B5";
+            else if (bppVal === 8) formatStr = "R3G3B2";
+            else if (bppVal === 4) formatStr = "A4";
+            else if (bppVal === 2) formatStr = "A2";
+            else if (bppVal === 1) formatStr = "A1";
+            else formatStr = "X8R8G8B8";
+        }
+
+        let channels = { 'R': [0,0], 'G': [0,0], 'B': [0,0], 'A': [0,0] };
+        let shift = 0;
+        let bits = 0;
+        let matches = [...formatStr.matchAll(/([XRGBAxrgba])([0-9]+)/g)];
+        
+        // Reverse array for right-to-left shift assignment
+        matches.reverse();
+        
+        for (let m of matches) {
+            let ch = m[1].toUpperCase();
+            let b = parseInt(m[2]);
+            if (channels[ch]) channels[ch] = [b, shift];
+            shift += b;
+            bits += b;
+        }
+
+        let bpp = 64;
+        const validBpps = [1, 2, 4, 8, 16, 24, 32, 64];
+        if (bppVal > 0 && matches.length === 0) {
+            for (let v of validBpps) { if (v >= bits) { bpp = v; break; } }
+            if (bppVal <= 64) bpp = bppVal;
+        } else {
+            for (let v of validBpps) { if (v >= bits) { bpp = v; break; } }
+        }
+
+        if (bpp < 8 && bppVal > 0) {
+            channels['A'] = [bpp, 0];
+            channels['R'] = [0, 0];
+            channels['G'] = [0, 0];
+            channels['B'] = [0, 0];
+        }
 
         let args = [
             "cc",
@@ -109,6 +154,14 @@ self.onmessage = async (e) => {
             `-DWAGNER_CFG_H=${h}`,
             `-DWAGNER_CFG_BPP=${bpp}`,
             `-DWAGNER_CFG_SCALE=${scale}`,
+            `-DWAGNER_CFG_R_BITS=${channels['R'][0]}`,
+            `-DWAGNER_CFG_R_SHIFT=${channels['R'][1]}`,
+            `-DWAGNER_CFG_G_BITS=${channels['G'][0]}`,
+            `-DWAGNER_CFG_G_SHIFT=${channels['G'][1]}`,
+            `-DWAGNER_CFG_B_BITS=${channels['B'][0]}`,
+            `-DWAGNER_CFG_B_SHIFT=${channels['B'][1]}`,
+            `-DWAGNER_CFG_A_BITS=${channels['A'][0]}`,
+            `-DWAGNER_CFG_A_SHIFT=${channels['A'][1]}`,
             "--entry-point=",
             "-ewupdate",
             `--stack-size=${stackSize}`
