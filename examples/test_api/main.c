@@ -81,6 +81,7 @@ static void draw_section2(void) {
     }
 
     // Redesenha o offscreen a cada frame com um padrão dinâmico
+    render_target(&offscreen);
     push(); fill(rgb(10, 10, 30)); clear(); pop();
     for (int i = 0; i < 8; i++) {
         float angle = anim + i * (TWO_PI / 8.0f);
@@ -91,6 +92,7 @@ static void draw_section2(void) {
     }
     push(); translate(0, 0); scale(offscreen.width, offscreen.height); stroke(WHITE); rect(); pop();
     push(); translate(10, 55); fill(WHITE); text("offscreen"); pop();
+    render_target(NULL);
 
     // Cola o offscreen centrado na tela
     int dx = (screen.width  - offscreen.width)  / 2;

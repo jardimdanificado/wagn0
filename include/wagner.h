@@ -83,13 +83,14 @@
 
 static struct {
     WagnosticState state;
+    WagnosticDirtyList dirty_list;
     uint8_t vram[WAGNER_VRAM_SIZE];
     uint8_t audio_buffer[16384];
 } _wagner_rom;
 
 #define w_width _wagner_rom.state.width
 #define w_height _wagner_rom.state.height
-#define w_bpp _wagner_rom.state.bpp
+#define w_bpp WAGNER_CFG_BPP
 #define w_scale _wagner_rom.state.scale
 #define w_mouse_x _wagner_rom.state.mouse_x
 #define w_mouse_y _wagner_rom.state.mouse_y
@@ -123,6 +124,7 @@ static inline pixel_t rgb(uint8_t r, uint8_t g, uint8_t b) {
     if (WAGNER_CFG_G_BITS) px |= (((uint64_t)g >> (8 - WAGNER_CFG_G_BITS)) << WAGNER_CFG_G_SHIFT);
     if (WAGNER_CFG_B_BITS) px |= (((uint64_t)b >> (8 - WAGNER_CFG_B_BITS)) << WAGNER_CFG_B_SHIFT);
     if (WAGNER_CFG_A_BITS) px |= (((uint64_t)255 >> (8 - WAGNER_CFG_A_BITS)) << WAGNER_CFG_A_SHIFT);
+    else if (WAGNER_CFG_BPP >= 24) px |= ((uint64_t)255 << 24);
     if (!WAGNER_CFG_R_BITS && !WAGNER_CFG_G_BITS && !WAGNER_CFG_B_BITS && WAGNER_CFG_A_BITS) {
         uint8_t lum = (uint8_t)(((uint32_t)r * 299 + (uint32_t)g * 587 + (uint32_t)b * 114) / 1000);
         px |= (((uint64_t)lum >> (8 - WAGNER_CFG_A_BITS)) << WAGNER_CFG_A_SHIFT);
@@ -136,6 +138,7 @@ static inline pixel_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     if (WAGNER_CFG_G_BITS) px |= (((uint64_t)g >> (8 - WAGNER_CFG_G_BITS)) << WAGNER_CFG_G_SHIFT);
     if (WAGNER_CFG_B_BITS) px |= (((uint64_t)b >> (8 - WAGNER_CFG_B_BITS)) << WAGNER_CFG_B_SHIFT);
     if (WAGNER_CFG_A_BITS) px |= (((uint64_t)a >> (8 - WAGNER_CFG_A_BITS)) << WAGNER_CFG_A_SHIFT);
+    else if (WAGNER_CFG_BPP >= 24) px |= ((uint64_t)a << 24);
     if (!WAGNER_CFG_R_BITS && !WAGNER_CFG_G_BITS && !WAGNER_CFG_B_BITS && WAGNER_CFG_A_BITS) {
         uint8_t lum = (uint8_t)(((uint32_t)r * 299 + (uint32_t)g * 587 + (uint32_t)b * 114) / 1000);
         px |= (((uint64_t)lum >> (8 - WAGNER_CFG_A_BITS)) << WAGNER_CFG_A_SHIFT);
@@ -620,10 +623,8 @@ __attribute__((weak)) void fill_audio(void) {
     uint32_t occupied = (w >= r) ? (w - r) : (size - r + w);
     if (occupied >= size - 1) return;
 
-    uint32_t bytes_to_write = WAGNER_AUDIO_FADE_SAMPLES * 2;
-    if (bytes_to_write > (size - 1 - occupied)) {
-        bytes_to_write = size - 1 - occupied;
-    }
+    uint32_t bytes_to_write = size - 1 - occupied;
+    if (bytes_to_write > 4096) bytes_to_write = 4096;
     if (bytes_to_write < 2) return;
     uint32_t samples = bytes_to_write / 2;
 
@@ -647,9 +648,9 @@ __attribute__((weak)) void fill_audio(void) {
                 noise_seed = noise_seed * 1103515245u + 12345u;
                 s = (int16_t)(noise_seed >> 16) / 32768.0f;
             } else {
-                float phase = _wagner_tones[t].freq * (float)gs
+                float phase = _wagner_tones[t].freq * (float)elapsed
                               / (float)WAGNER_AUDIO_SAMPLE_RATE;
-                uint8_t idx = (uint8_t)(phase * 256.0f);
+                uint8_t idx = (uint8_t)((uint32_t)(phase * 256.0f) & 0xFF);
                 s = _wagner_sin_lut[idx] / 32768.0f;
             }
 
@@ -1356,9 +1357,20 @@ WagnerAudio ogg_decode(const uint8_t* data, size_t size) {
 #include "assets.h"
 
 static const WagnerAsset* _wagner_find_asset(const char* path) {
+    if (!path) return NULL;
     for (int i = 0; i < WAGNER_ASSET_COUNT; i++) {
         const char* a = WAGNER_ASSETS[i].path;
         const char* b = path;
+        while (*a && *b && *a == *b) { a++; b++; }
+        if (*a == 0 && *b == 0) return &WAGNER_ASSETS[i];
+    }
+    const char* base = path;
+    for (const char* p = path; *p; p++) {
+        if (*p == '/' || *p == '\\') base = p + 1;
+    }
+    for (int i = 0; i < WAGNER_ASSET_COUNT; i++) {
+        const char* a = WAGNER_ASSETS[i].path;
+        const char* b = base;
         while (*a && *b && *a == *b) { a++; b++; }
         if (*a == 0 && *b == 0) return &WAGNER_ASSETS[i];
     }
@@ -1385,6 +1397,8 @@ void load_audio(WagnerAudio* out, const char* path) {
                 *out = wav_decode((uint8_t*)asset->data, asset->size);
             } else if (ext[1]=='o' && ext[2]=='g' && ext[3]=='g') {
                 *out = ogg_decode((uint8_t*)asset->data, asset->size);
+            } else if (ext[1]=='m' && ext[2]=='p' && ext[3]=='3') {
+                *out = mp3_decode((uint8_t*)asset->data, asset->size);
             }
         }
 #endif
@@ -1418,9 +1432,9 @@ int wupdate() {
         wagner.mouse_pressed = false; wagner.mouse_released = false;
         wagner.mouse_down = false;
         
-        _wagner_rom.state.vram_offset = sizeof(WagnosticState);
-        _wagner_rom.state.audio_buffer_offset = sizeof(WagnosticState) + sizeof(_wagner_rom.vram);
-        _wagner_rom.state.bpp = WAGNER_CFG_BPP;
+        _wagner_rom.state.vram_offset = (uint32_t)((uint8_t*)_wagner_rom.vram - (uint8_t*)&_wagner_rom.state);
+        _wagner_rom.state.audio_buffer_offset = (uint32_t)((uint8_t*)_wagner_rom.audio_buffer - (uint8_t*)&_wagner_rom.state);
+        
         _wagner_rom.state.r_bits = WAGNER_CFG_R_BITS;
         _wagner_rom.state.r_shift = WAGNER_CFG_R_SHIFT;
         _wagner_rom.state.g_bits = WAGNER_CFG_G_BITS;
@@ -1489,7 +1503,7 @@ int wupdate() {
         if (wagner.keys_pressed[i] && key_pressed) key_pressed(i);
         if (wagner.keys_released[i] && key_released) key_released(i);
     }
-    w_redraw(&_wagner_rom.state);
+    w_redraw(&_wagner_rom.state, &_wagner_rom.dirty_list);
     return (int)&_wagner_rom.state;
 }
 
