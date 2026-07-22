@@ -1,6 +1,6 @@
 {
     "name": "image_png",
-    "width": 320, "height": 240, "scale": 2, "bpp": 16,
+    "width": 320, "height": 240, "scale": 2, "color": "RGB565",
     "memory": 8388608,
     "src": ["main.c"]
 }

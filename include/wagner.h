@@ -993,14 +993,28 @@ void rect(void) {
     }
     
     if (state->has_stroke) {
-        float x1 = 0.0f, y1 = 0.0f; _wagner_transform(&x1, &y1);
-        float x2 = 1.0f, y2 = 0.0f; _wagner_transform(&x2, &y2);
-        float x3 = 1.0f, y3 = 1.0f; _wagner_transform(&x3, &y3);
-        float x4 = 0.0f, y4 = 1.0f; _wagner_transform(&x4, &y4);
-        olivec_line(oc, (int)x1, (int)y1, (int)x2, (int)y2, state->stroke_color);
-        olivec_line(oc, (int)x2, (int)y2, (int)x3, (int)y3, state->stroke_color);
-        olivec_line(oc, (int)x3, (int)y3, (int)x4, (int)y4, state->stroke_color);
-        olivec_line(oc, (int)x4, (int)y4, (int)x1, (int)y1, state->stroke_color);
+        if (_wagner_is_axis_aligned()) {
+            float fx = 0.0f, fy = 0.0f; _wagner_transform(&fx, &fy);
+            WagnerMatrix* m = _wagner_current_matrix();
+            int nx = (int)fx, ny = (int)fy, nw = (int)m->a, nh = (int)m->d;
+            if (nw < 0) { nx += nw; nw = -nw; }
+            if (nh < 0) { ny += nh; nh = -nh; }
+            int rx = (nw > 0) ? (nx + nw - 1) : nx;
+            int by = (nh > 0) ? (ny + nh - 1) : ny;
+            olivec_line(oc, nx, ny, rx, ny, state->stroke_color);
+            olivec_line(oc, rx, ny, rx, by, state->stroke_color);
+            olivec_line(oc, rx, by, nx, by, state->stroke_color);
+            olivec_line(oc, nx, by, nx, ny, state->stroke_color);
+        } else {
+            float x1 = 0.0f, y1 = 0.0f; _wagner_transform(&x1, &y1);
+            float x2 = 1.0f, y2 = 0.0f; _wagner_transform(&x2, &y2);
+            float x3 = 1.0f, y3 = 1.0f; _wagner_transform(&x3, &y3);
+            float x4 = 0.0f, y4 = 1.0f; _wagner_transform(&x4, &y4);
+            olivec_line(oc, (int)x1, (int)y1, (int)x2, (int)y2, state->stroke_color);
+            olivec_line(oc, (int)x2, (int)y2, (int)x3, (int)y3, state->stroke_color);
+            olivec_line(oc, (int)x3, (int)y3, (int)x4, (int)y4, state->stroke_color);
+            olivec_line(oc, (int)x4, (int)y4, (int)x1, (int)y1, state->stroke_color);
+        }
     }
 }
 

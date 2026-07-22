@@ -3,7 +3,7 @@
     "width": 320,
     "height": 240,
     "scale": 4,
-    "bpp": 8,
+    "color": "RGB332",
     "memory": 8388608,
     "src": ["main.c"]
 }

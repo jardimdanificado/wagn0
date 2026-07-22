@@ -115,14 +115,16 @@ static void draw_section2(void) {
     push(); translate(110, 210); fill(GRAY); text(info); pop();
 }
 
+static uint32_t current_seed = 42;
+
 // ── Seção 3: dist / dist_sq / text_height / random_seed ─────────────────────
 static void draw_section3(void) {
     push(); translate(4, 4); fill(WHITE); text("3: dist / text_height / rng"); pop();
 
     // Mostra text_height
     int th = text_height();
-    push(); translate(4, 22); fill(CYAN); text("text_height()=6"); pop();
-    push(); translate(3, 21); scale(text_width("text_height()=6"), th); stroke(CYAN); rect(); pop();
+    push(); translate(4, 22); fill(CYAN); text("text_height()=8"); pop();
+    push(); translate(3, 21); scale(text_width("text_height()=8"), th); stroke(CYAN); rect(); pop();
 
     // dist do mouse ao centro
     float cx = screen.width  / 2.0f;
@@ -142,9 +144,9 @@ static void draw_section3(void) {
 
     push(); translate(4, 68); fill(GRAY); text("dist_sq > dist:ok"); pop();
 
-    // random_seed demo: gera 20 pontos com seed fixa
-    push(); translate(4, 90); fill(WHITE); text("rng seed=42:"); pop();
-    random_seed(42);
+    // random_seed demo: gera 20 pontos com seed ativa
+    push(); translate(4, 90); fill(WHITE); text("rng (press R to reseed):"); pop();
+    random_seed(current_seed);
     for (int i = 0; i < 20; i++) {
         int rx = random_int(10, 310);
         int ry = random_int(100, 200);
@@ -241,7 +243,8 @@ void key_pressed(int key) {
         beep_playing = 0;
     }
     // Re-seed com ticks
-    if (key == 21 || key == 'r') {
-        random_seed(w_ticks);
+    if (key == 21 || key == 'r' || key == 'R' || key == 114 || key == 82 || key == 15) {
+        current_seed = w_ticks ? w_ticks : (current_seed + 1234567);
+        random_seed(current_seed);
     }
 }

@@ -113,6 +113,27 @@
     return new DataView(wasmMemory.buffer);
   }
 
+  function computeBpp(s) {
+    let maxBit = 0;
+    function check(bits, shift) {
+      if (bits > 0 && (shift + bits) > maxBit) maxBit = shift + bits;
+    }
+    check(s.rBits, s.rShift);
+    check(s.gBits, s.gShift);
+    check(s.bBits, s.bShift);
+    check(s.aBits, s.aShift);
+    check(s.xBits, s.xShift);
+    if (maxBit <= 0)  return 32;
+    if (maxBit <= 1)  return 1;
+    if (maxBit <= 2)  return 2;
+    if (maxBit <= 4)  return 4;
+    if (maxBit <= 8)  return 8;
+    if (maxBit <= 16) return 16;
+    if (maxBit <= 24) return 24;
+    if (maxBit <= 32) return 32;
+    return 64;
+  }
+
   function readGlobals() {
     if (!statePtr) return {};
     const mem = getMem();
@@ -121,56 +142,57 @@
     let s = {
       w:               mem.getUint32(ptr + 0, true),
       h:               mem.getUint32(ptr + 4, true),
-      bpp:             mem.getUint32(ptr + 8, true),
-      scale:           mem.getUint32(ptr + 12, true),
-      dirtyCount:      mem.getUint32(ptr + 144, true),
-      dirtyRects:      ptr + 148,
-      mouseX:          mem.getInt32(ptr + 660, true),
-      mouseY:          mem.getInt32(ptr + 664, true),
-      mouseButtons:    mem.getUint32(ptr + 668, true),
-      mouseWheel:      mem.getInt32(ptr + 672, true),
-      gamepadButtons:  mem.getUint32(ptr + 932, true),
-      ticks:           mem.getUint32(ptr + 936, true),
-      targetFps:       mem.getUint32(ptr + 940, true),
-      audioSize:       mem.getUint32(ptr + 944, true),
-      audioSampleRate: mem.getUint32(ptr + 948, true),
-      audioBpp:        mem.getUint32(ptr + 952, true),
-      audioChannels:   mem.getUint32(ptr + 956, true),
-      audioWrite:      mem.getUint32(ptr + 960, true),
-      audioRead:       mem.getUint32(ptr + 964, true),
-      audioUnderrun:   mem.getUint32(ptr + 968, true),
-      audioOverrun:    mem.getUint32(ptr + 972, true),
-      vramOffset:      mem.getUint32(ptr + 976, true),
-      audioBuffer:     mem.getUint32(ptr + 980, true),
-      rBits:           mem.getUint32(ptr + 984, true),
-      rShift:          mem.getUint32(ptr + 988, true),
-      gBits:           mem.getUint32(ptr + 992, true),
-      gShift:          mem.getUint32(ptr + 996, true),
-      bBits:           mem.getUint32(ptr + 1000, true),
-      bShift:          mem.getUint32(ptr + 1004, true),
-      aBits:           mem.getUint32(ptr + 1008, true),
-      aShift:          mem.getUint32(ptr + 1012, true),
+      scale:           mem.getUint32(ptr + 8, true),
+      dirtyRectsPtr:   mem.getUint32(ptr + 140, true),
+      mouseX:          mem.getInt32(ptr + 144, true),
+      mouseY:          mem.getInt32(ptr + 148, true),
+      mouseButtons:    mem.getUint32(ptr + 152, true),
+      mouseWheel:      mem.getInt32(ptr + 156, true),
+      gamepadButtons:  mem.getUint32(ptr + 416, true),
+      ticks:           mem.getUint32(ptr + 420, true),
+      targetFps:       mem.getUint32(ptr + 424, true),
+      audioSize:       mem.getUint32(ptr + 428, true),
+      audioSampleRate: mem.getUint32(ptr + 432, true),
+      audioBpp:        mem.getUint32(ptr + 436, true),
+      audioChannels:   mem.getUint32(ptr + 440, true),
+      audioWrite:      mem.getUint32(ptr + 444, true),
+      audioRead:       mem.getUint32(ptr + 448, true),
+      audioUnderrun:   mem.getUint32(ptr + 452, true),
+      audioOverrun:    mem.getUint32(ptr + 456, true),
+      vramOffset:      mem.getUint32(ptr + 460, true),
+      audioBuffer:     mem.getUint32(ptr + 464, true),
+      rBits:           mem.getUint32(ptr + 468, true),
+      rShift:          mem.getUint32(ptr + 472, true),
+      gBits:           mem.getUint32(ptr + 476, true),
+      gShift:          mem.getUint32(ptr + 480, true),
+      bBits:           mem.getUint32(ptr + 484, true),
+      bShift:          mem.getUint32(ptr + 488, true),
+      aBits:           mem.getUint32(ptr + 492, true),
+      aShift:          mem.getUint32(ptr + 496, true),
+      xBits:           mem.getUint32(ptr + 500, true),
+      xShift:          mem.getUint32(ptr + 504, true),
     };
-    if (!s.bpp) s.bpp = 32;
-    if (!s.rBits && !s.gBits && !s.bBits && !s.aBits) {
-        if (s.bpp === 32) {
+    if (!s.rBits && !s.gBits && !s.bBits && !s.aBits && !s.xBits) {
+        let bpp = s.bpp || 32;
+        if (bpp === 32) {
             s.aBits = 8; s.aShift = 24; s.bBits = 8; s.bShift = 16; s.gBits = 8; s.gShift = 8; s.rBits = 8; s.rShift = 0;
-        } else if (s.bpp === 24) {
+        } else if (bpp === 24) {
             s.bBits = 8; s.bShift = 16; s.gBits = 8; s.gShift = 8; s.rBits = 8; s.rShift = 0;
-        } else if (s.bpp === 16) {
+        } else if (bpp === 16) {
             s.rBits = 5; s.rShift = 11; s.gBits = 6; s.gShift = 5; s.bBits = 5; s.bShift = 0;
-        } else if (s.bpp === 8) {
+        } else if (bpp === 8) {
             s.rBits = 3; s.rShift = 5; s.gBits = 3; s.gShift = 2; s.bBits = 2; s.bShift = 0;
-        } else if (s.bpp === 4 || s.bpp === 2 || s.bpp === 1) {
-            s.aBits = s.bpp; s.aShift = 0;
+        } else if (bpp === 4 || bpp === 2 || bpp === 1) {
+            s.aBits = bpp; s.aShift = 0;
         }
     }
+    s.bpp = computeBpp(s);
     return s;
   }
 
   function readTitle() {
     if (!statePtr) return '(untitled)';
-    const u8 = new Uint8Array(wasmMemory.buffer, statePtr + 16, TITLE_MAX);
+    const u8 = new Uint8Array(wasmMemory.buffer, statePtr + 12, TITLE_MAX);
     let end = 0;
     while (end < TITLE_MAX && u8[end] !== 0) end++;
     return new TextDecoder().decode(u8.subarray(0, end));
@@ -198,7 +220,453 @@
     prevScale  = scale;
   }
 
+  const FMT_GENERIC     = 0;
+  const FMT_RGBA8888_LE = 1;
+  const FMT_BGRA8888_LE = 2;
+  const FMT_RGBX8888_LE = 3;
+  const FMT_BGRX8888_LE = 4;
+  const FMT_RGB888      = 5;
+  const FMT_BGR888      = 6;
+  const FMT_RGB565      = 7;
+  const FMT_BGR565      = 8;
+  const FMT_RGB555      = 9;
+  const FMT_BGR555      = 10;
+  const FMT_RGB444      = 11;
+  const FMT_RGBA4444    = 12;
+  const FMT_ARGB4444    = 13;
+  const FMT_RGB333      = 14;
+  const FMT_RGB332      = 15;
+  const FMT_RGB222      = 16;
+  const FMT_RGBA2222    = 17;
+  const FMT_RGB111      = 18;
+  const FMT_GRAY8       = 19;
+  const FMT_RGB666      = 20;
+  const FMT_MONO1       = 21;
+  const FMT_MONO2       = 22;
+  const FMT_MONO4       = 23;
+
+  function detectPixelFormat(bpp, rb, rs, gb, gs, bb, bs, ab, ash) {
+    if (bpp === 1) return FMT_MONO1;
+    if (bpp === 2) return FMT_MONO2;
+    if (bpp === 4) return FMT_MONO4;
+
+    if (bpp === 32) {
+      if (rb === 8 && rs === 0  && gb === 8 && gs === 8 && bb === 8 && bs === 16 && ab === 8 && ash === 24) return FMT_RGBA8888_LE;
+      if (rb === 8 && rs === 16 && gb === 8 && gs === 8 && bb === 8 && bs === 0  && ab === 8 && ash === 24) return FMT_BGRA8888_LE;
+      if (rb === 8 && rs === 0  && gb === 8 && gs === 8 && bb === 8 && bs === 16 && ab === 0) return FMT_RGBX8888_LE;
+      if (rb === 8 && rs === 16 && gb === 8 && gs === 8 && bb === 8 && bs === 0  && ab === 0) return FMT_BGRX8888_LE;
+    }
+
+    if (bpp === 24) {
+      if (rb === 8 && rs === 0  && gb === 8 && gs === 8 && bb === 8 && bs === 16) return FMT_RGB888;
+      if (rb === 8 && rs === 16 && gb === 8 && gs === 8 && bb === 8 && bs === 0)  return FMT_BGR888;
+    }
+
+    if (bpp === 16) {
+      if (rb === 5 && rs === 11 && gb === 6 && gs === 5  && bb === 5 && bs === 0  && ab === 0) return FMT_RGB565;
+      if (rb === 5 && rs === 0  && gb === 6 && gs === 5  && bb === 5 && bs === 11 && ab === 0) return FMT_BGR565;
+      if (rb === 5 && rs === 10 && gb === 5 && gs === 5  && bb === 5 && bs === 0  && (ab === 0 || ab === 1)) return FMT_RGB555;
+      if (rb === 5 && rs === 0  && gb === 5 && gs === 5  && bb === 5 && bs === 10 && (ab === 0 || ab === 1)) return FMT_BGR555;
+      if (rb === 4 && rs === 8  && gb === 4 && gs === 4  && bb === 4 && bs === 0  && ab === 0) return FMT_RGB444;
+      if (rb === 4 && rs === 12 && gb === 4 && gs === 8  && bb === 4 && bs === 4  && ab === 4 && ash === 0) return FMT_RGBA4444;
+      if (rb === 4 && rs === 8  && gb === 4 && gs === 4  && bb === 4 && bs === 0  && ab === 4 && ash === 12) return FMT_ARGB4444;
+      if (rb === 3 && rs === 6  && gb === 3 && gs === 3  && bb === 3 && bs === 0  && ab === 0) return FMT_RGB333;
+    }
+
+    if (bpp === 8) {
+      if (rb === 3 && rs === 5 && gb === 3 && gs === 2 && bb === 2 && bs === 0 && ab === 0) return FMT_RGB332;
+      if (rb === 2 && rs === 4 && gb === 2 && gs === 2 && bb === 2 && bs === 0 && ab === 0) return FMT_RGB222;
+      if (rb === 2 && rs === 6 && gb === 2 && gs === 4 && bb === 2 && bs === 2 && ab === 2 && ash === 0) return FMT_RGBA2222;
+      if (rb === 1 && rs === 2 && gb === 1 && gs === 1 && bb === 1 && bs === 0 && ab === 0) return FMT_RGB111;
+      if (rb === 0 && gb === 0 && bb === 0) return FMT_GRAY8;
+    }
+
+    if ((bpp === 24 || bpp === 32) && rb === 6 && rs === 12 && gb === 6 && gs === 6 && bb === 6 && bs === 0 && ab === 0) {
+      return FMT_RGB666;
+    }
+
+    return FMT_GENERIC;
+  }
+
   function unpackPixelsToImageData(w, h, bpp, vramPtr, pixels, u32, cx, cy, cw, ch, rb, rs, gb, gs, bb, bs, ab, ash, isGrayscale) {
+    const fmt = detectPixelFormat(bpp, rb, rs, gb, gs, bb, bs, ab, ash);
+    const buf = wasmMemory.buffer;
+    const align32 = (vramPtr % 4 === 0);
+    const align16 = (vramPtr % 2 === 0);
+
+    if (fmt === FMT_RGBA8888_LE) {
+      if (align32) {
+        const v32 = new Uint32Array(buf, vramPtr, w * h);
+        for (let row = 0; row < ch; row++) {
+          const srcOff = (cy + row) * w + cx;
+          const dstOff = row * cw;
+          u32.set(v32.subarray(srcOff, srcOff + cw), dstOff);
+        }
+      } else {
+        const v8 = new Uint8Array(buf, vramPtr);
+        for (let row = 0; row < ch; row++) {
+          const dstOff = row * cw;
+          let srcIdx = ((cy + row) * w + cx) * 4;
+          for (let col = 0; col < cw; col++) {
+            u32[dstOff + col] = v8[srcIdx] | (v8[srcIdx+1] << 8) | (v8[srcIdx+2] << 16) | (v8[srcIdx+3] << 24);
+            srcIdx += 4;
+          }
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_BGRA8888_LE) {
+      const v32 = align32 ? new Uint32Array(buf, vramPtr, w * h) : null;
+      const v8 = !align32 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align32 ? v32[srcRow + col] : (v8[(srcRow + col)*4] | (v8[(srcRow + col)*4+1] << 8) | (v8[(srcRow + col)*4+2] << 16) | (v8[(srcRow + col)*4+3] << 24));
+          u32[dstOff + col] = (px & 0xFF00FF00) | ((px & 0x00FF0000) >>> 16) | ((px & 0x000000FF) << 16);
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGBX8888_LE) {
+      const v32 = align32 ? new Uint32Array(buf, vramPtr, w * h) : null;
+      const v8 = !align32 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align32 ? v32[srcRow + col] : (v8[(srcRow + col)*4] | (v8[(srcRow + col)*4+1] << 8) | (v8[(srcRow + col)*4+2] << 16));
+          u32[dstOff + col] = 0xFF000000 | (px & 0x00FFFFFF);
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_BGRX8888_LE) {
+      const v32 = align32 ? new Uint32Array(buf, vramPtr, w * h) : null;
+      const v8 = !align32 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align32 ? v32[srcRow + col] : (v8[(srcRow + col)*4] | (v8[(srcRow + col)*4+1] << 8) | (v8[(srcRow + col)*4+2] << 16));
+          u32[dstOff + col] = 0xFF000000 | (px & 0x0000FF00) | ((px & 0x00FF0000) >>> 16) | ((px & 0x000000FF) << 16);
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB888) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        let srcIdx = ((cy + row) * w + cx) * 3;
+        for (let col = 0; col < cw; col++) {
+          u32[dstOff + col] = 0xFF000000 | (v8[srcIdx + 2] << 16) | (v8[srcIdx + 1] << 8) | v8[srcIdx];
+          srcIdx += 3;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_BGR888) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        let srcIdx = ((cy + row) * w + cx) * 3;
+        for (let col = 0; col < cw; col++) {
+          u32[dstOff + col] = 0xFF000000 | (v8[srcIdx] << 16) | (v8[srcIdx + 1] << 8) | v8[srcIdx + 2];
+          srcIdx += 3;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB565) {
+      const v16 = align16 ? new Uint16Array(buf, vramPtr, w * h) : null;
+      const v8 = !align16 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align16 ? v16[srcRow + col] : (v8[(srcRow + col)*2] | (v8[(srcRow + col)*2+1] << 8));
+          let r = (px >>> 11) & 0x1F; r = (r << 3) | (r >>> 2);
+          let g = (px >>> 5)  & 0x3F; g = (g << 2) | (g >>> 4);
+          let b = px & 0x1F;        b = (b << 3) | (b >>> 2);
+          u32[dstOff + col] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_BGR565) {
+      const v16 = align16 ? new Uint16Array(buf, vramPtr, w * h) : null;
+      const v8 = !align16 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align16 ? v16[srcRow + col] : (v8[(srcRow + col)*2] | (v8[(srcRow + col)*2+1] << 8));
+          let b = (px >>> 11) & 0x1F; b = (b << 3) | (b >>> 2);
+          let g = (px >>> 5)  & 0x3F; g = (g << 2) | (g >>> 4);
+          let r = px & 0x1F;        r = (r << 3) | (r >>> 2);
+          u32[dstOff + col] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB555) {
+      const v16 = align16 ? new Uint16Array(buf, vramPtr, w * h) : null;
+      const v8 = !align16 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align16 ? v16[srcRow + col] : (v8[(srcRow + col)*2] | (v8[(srcRow + col)*2+1] << 8));
+          let r = (px >>> 10) & 0x1F; r = (r << 3) | (r >>> 2);
+          let g = (px >>> 5)  & 0x1F; g = (g << 3) | (g >>> 2);
+          let b = px & 0x1F;        b = (b << 3) | (b >>> 2);
+          let a = (ab === 1 && !(px & (1 << ash))) ? 0 : 255;
+          u32[dstOff + col] = (a << 24) | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_BGR555) {
+      const v16 = align16 ? new Uint16Array(buf, vramPtr, w * h) : null;
+      const v8 = !align16 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align16 ? v16[srcRow + col] : (v8[(srcRow + col)*2] | (v8[(srcRow + col)*2+1] << 8));
+          let b = (px >>> 10) & 0x1F; b = (b << 3) | (b >>> 2);
+          let g = (px >>> 5)  & 0x1F; g = (g << 3) | (g >>> 2);
+          let r = px & 0x1F;        r = (r << 3) | (r >>> 2);
+          let a = (ab === 1 && !(px & (1 << ash))) ? 0 : 255;
+          u32[dstOff + col] = (a << 24) | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB444) {
+      const v16 = align16 ? new Uint16Array(buf, vramPtr, w * h) : null;
+      const v8 = !align16 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align16 ? v16[srcRow + col] : (v8[(srcRow + col)*2] | (v8[(srcRow + col)*2+1] << 8));
+          let r = (px >>> 8) & 0x0F; r = (r << 4) | r;
+          let g = (px >>> 4) & 0x0F; g = (g << 4) | g;
+          let b = px & 0x0F;        b = (b << 4) | b;
+          u32[dstOff + col] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGBA4444) {
+      const v16 = align16 ? new Uint16Array(buf, vramPtr, w * h) : null;
+      const v8 = !align16 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align16 ? v16[srcRow + col] : (v8[(srcRow + col)*2] | (v8[(srcRow + col)*2+1] << 8));
+          let r = (px >>> 12) & 0x0F; r = (r << 4) | r;
+          let g = (px >>> 8)  & 0x0F; g = (g << 4) | g;
+          let b = (px >>> 4)  & 0x0F; b = (b << 4) | b;
+          let a = px & 0x0F;         a = (a << 4) | a;
+          u32[dstOff + col] = (a << 24) | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_ARGB4444) {
+      const v16 = align16 ? new Uint16Array(buf, vramPtr, w * h) : null;
+      const v8 = !align16 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align16 ? v16[srcRow + col] : (v8[(srcRow + col)*2] | (v8[(srcRow + col)*2+1] << 8));
+          let a = (px >>> 12) & 0x0F; a = (a << 4) | a;
+          let r = (px >>> 8)  & 0x0F; r = (r << 4) | r;
+          let g = (px >>> 4)  & 0x0F; g = (g << 4) | g;
+          let b = px & 0x0F;         b = (b << 4) | b;
+          u32[dstOff + col] = (a << 24) | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB333) {
+      const v16 = align16 ? new Uint16Array(buf, vramPtr, w * h) : null;
+      const v8 = !align16 ? new Uint8Array(buf, vramPtr) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = align16 ? v16[srcRow + col] : (v8[(srcRow + col)*2] | (v8[(srcRow + col)*2+1] << 8));
+          let r = (px >>> 6) & 7; r = (r << 5) | (r << 2) | (r >>> 1);
+          let g = (px >>> 3) & 7; g = (g << 5) | (g << 2) | (g >>> 1);
+          let b = px & 7;        b = (b << 5) | (b << 2) | (b >>> 1);
+          u32[dstOff + col] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB332) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = v8[srcRow + col];
+          let r = (px >>> 5) & 7; r = (r << 5) | (r << 2) | (r >>> 1);
+          let g = (px >>> 2) & 7; g = (g << 5) | (g << 2) | (g >>> 1);
+          let b = px & 3;        b = (b << 6) | (b << 4) | (b << 2) | b;
+          u32[dstOff + col] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB222) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = v8[srcRow + col];
+          let r = (px >>> 4) & 3; r = (r << 6) | (r << 4) | (r << 2) | r;
+          let g = (px >>> 2) & 3; g = (g << 6) | (g << 4) | (g << 2) | g;
+          let b = px & 3;        b = (b << 6) | (b << 4) | (b << 2) | b;
+          u32[dstOff + col] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGBA2222) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = v8[srcRow + col];
+          let r = (px >>> 6) & 3; r = (r << 6) | (r << 4) | (r << 2) | r;
+          let g = (px >>> 4) & 3; g = (g << 6) | (g << 4) | (g << 2) | g;
+          let b = (px >>> 2) & 3; b = (b << 6) | (b << 4) | (b << 2) | b;
+          let a = px & 3;        a = (a << 6) | (a << 4) | (a << 2) | a;
+          u32[dstOff + col] = (a << 24) | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB111) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const px = v8[srcRow + col];
+          let r = (px & 4) ? 255 : 0;
+          let g = (px & 2) ? 255 : 0;
+          let b = (px & 1) ? 255 : 0;
+          u32[dstOff + col] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_GRAY8) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const lum = v8[srcRow + col];
+          u32[dstOff + col] = 0xFF000000 | (lum << 16) | (lum << 8) | lum;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_RGB666) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      const v32 = align32 ? new Uint32Array(buf, vramPtr, w * h) : null;
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const idx = srcRow + col;
+          const px = (bpp === 32) ? (align32 ? v32[idx] : (v8[idx*4] | (v8[idx*4+1]<<8) | (v8[idx*4+2]<<16))) : (v8[idx*3] | (v8[idx*3+1]<<8) | (v8[idx*3+2]<<16));
+          let r = (px >>> 12) & 0x3F; r = (r << 2) | (r >>> 4);
+          let g = (px >>> 6)  & 0x3F; g = (g << 2) | (g >>> 4);
+          let b = px & 0x3F;         b = (b << 2) | (b >>> 4);
+          u32[dstOff + col] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_MONO1) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const idx = srcRow + col;
+          const bVal = v8[Math.floor(idx / 8)];
+          const bit = (bVal >>> (7 - (idx % 8))) & 1;
+          u32[dstOff + col] = bit ? 0xFFFFFFFF : 0xFF000000;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_MONO2) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const idx = srcRow + col;
+          const bVal = v8[Math.floor(idx / 4)];
+          let val = (bVal >>> (6 - (idx % 4) * 2)) & 0x03;
+          val = (val << 6) | (val << 4) | (val << 2) | val;
+          u32[dstOff + col] = 0xFF000000 | (val << 16) | (val << 8) | val;
+        }
+      }
+      return;
+    }
+
+    if (fmt === FMT_MONO4) {
+      const v8 = new Uint8Array(buf, vramPtr);
+      for (let row = 0; row < ch; row++) {
+        const dstOff = row * cw;
+        const srcRow = (cy + row) * w + cx;
+        for (let col = 0; col < cw; col++) {
+          const idx = srcRow + col;
+          const bVal = v8[Math.floor(idx / 2)];
+          let val = (idx % 2 === 0) ? (bVal >>> 4) : (bVal & 0x0F);
+          val = (val << 4) | val;
+          u32[dstOff + col] = 0xFF000000 | (val << 16) | (val << 8) | val;
+        }
+      }
+      return;
+    }
+
     const mem = getMem();
     for (let row = 0; row < ch; row++) {
       const dstOff = row * cw;
@@ -224,7 +692,7 @@
           const byte = mem.getUint8(vramPtr + Math.floor(idx / 8));
           px = (byte >> (7 - (idx % 8))) & 1;
         }
-        
+
         let val = (bpp === 64) ? BigInt(px) : Number(px);
 
         let r = 0, g = 0, b = 0, a = 255;
