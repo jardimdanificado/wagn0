@@ -106,6 +106,7 @@
 
   // Timing
   let startTime = performance.now();
+  let lastFrameTime = 0;
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -114,6 +115,8 @@
   }
 
   function computeBpp(s) {
+    // Derive BPP from the highest (shift + bits) of any active channel.
+    // x_bits/x_shift are for padding/unused channels that still consume bits.
     let maxBit = 0;
     function check(bits, shift) {
       if (bits > 0 && (shift + bits) > maxBit) maxBit = shift + bits;
@@ -123,7 +126,7 @@
     check(s.bBits, s.bShift);
     check(s.aBits, s.aShift);
     check(s.xBits, s.xShift);
-    if (maxBit <= 0)  return 32;
+    if (maxBit <= 0)  return 32;  // no channel info → assume 32bpp
     if (maxBit <= 1)  return 1;
     if (maxBit <= 2)  return 2;
     if (maxBit <= 4)  return 4;
@@ -139,6 +142,36 @@
     const mem = getMem();
     const ptr = statePtr;
 
+    // Layout (1024 bytes, no packing):
+    // +0   width      uint32
+    // +4   height     uint32
+    // +8   scale      uint32
+    // +12  title      char[128]
+    // +140 dirty_rects uint32  (WASM pointer to { uint32 count; Rect rects[32]; })
+    // +144 mouse_x    int32
+    // +148 mouse_y    int32
+    // +152 mouse_buttons uint32
+    // +156 mouse_wheel int32
+    // +160 keys       uint8[256]
+    // +416 gamepad_buttons uint32
+    // +420 ticks      uint32
+    // +424 target_fps uint32
+    // +428 audio_size uint32
+    // +432 audio_sample_rate uint32
+    // +436 audio_bpp  uint32
+    // +440 audio_channels uint32
+    // +444 audio_write uint32
+    // +448 audio_read uint32
+    // +452 audio_underrun uint32
+    // +456 audio_overrun uint32
+    // +460 vram_offset uint32
+    // +464 audio_buffer_offset uint32
+    // +468 r_bits uint32  +472 r_shift uint32
+    // +476 g_bits uint32  +480 g_shift uint32
+    // +484 b_bits uint32  +488 b_shift uint32
+    // +492 a_bits uint32  +496 a_shift uint32
+    // +500 x_bits uint32  +504 x_shift uint32
+    // +508 reserved[516]
     let s = {
       w:               mem.getUint32(ptr + 0, true),
       h:               mem.getUint32(ptr + 4, true),
@@ -172,26 +205,30 @@
       xBits:           mem.getUint32(ptr + 500, true),
       xShift:          mem.getUint32(ptr + 504, true),
     };
+
+    // Derive BPP from channel info
+    s.bpp = computeBpp(s);
+
+    // If no channel bits set, fill in defaults based on computed BPP
     if (!s.rBits && !s.gBits && !s.bBits && !s.aBits && !s.xBits) {
-        let bpp = s.bpp || 32;
-        if (bpp === 32) {
+        if (s.bpp === 32) {
             s.aBits = 8; s.aShift = 24; s.bBits = 8; s.bShift = 16; s.gBits = 8; s.gShift = 8; s.rBits = 8; s.rShift = 0;
-        } else if (bpp === 24) {
+        } else if (s.bpp === 24) {
             s.bBits = 8; s.bShift = 16; s.gBits = 8; s.gShift = 8; s.rBits = 8; s.rShift = 0;
-        } else if (bpp === 16) {
+        } else if (s.bpp === 16) {
             s.rBits = 5; s.rShift = 11; s.gBits = 6; s.gShift = 5; s.bBits = 5; s.bShift = 0;
-        } else if (bpp === 8) {
+        } else if (s.bpp === 8) {
             s.rBits = 3; s.rShift = 5; s.gBits = 3; s.gShift = 2; s.bBits = 2; s.bShift = 0;
-        } else if (bpp === 4 || bpp === 2 || bpp === 1) {
-            s.aBits = bpp; s.aShift = 0;
+        } else if (s.bpp === 4 || s.bpp === 2 || s.bpp === 1) {
+            s.aBits = s.bpp; s.aShift = 0;
         }
     }
-    s.bpp = computeBpp(s);
     return s;
   }
 
   function readTitle() {
     if (!statePtr) return '(untitled)';
+    // title starts at offset +12
     const u8 = new Uint8Array(wasmMemory.buffer, statePtr + 12, TITLE_MAX);
     let end = 0;
     while (end < TITLE_MAX && u8[end] !== 0) end++;
@@ -734,29 +771,40 @@
     ctx.putImageData(imageData, 0, 0);
   }
 
-  function renderDirtyRects(state, w, h, bpp, vramPtr, dirtyCount, dirtyRectsPtr) {
+  function renderDirtyRects(state, w, h, bpp, vramPtr, dirtyRectsWasmPtr) {
+    // dirtyRectsWasmPtr points to: { uint32 count; Rect rects[32]; }
+    // where Rect = { int32 x, y, w, h; } (16 bytes each)
+    if (!dirtyRectsWasmPtr) return;
+    const mem = getMem();
+    const dirtyCount = mem.getUint32(dirtyRectsWasmPtr, true);
+    if (dirtyCount === 0) return;
+
     const isGrayscale = (state.rBits === 0 && state.gBits === 0 && state.bBits === 0 && state.aBits > 0) || 
                         (state.rBits === 0 && state.gBits === 0 && state.bBits === 0 && state.aBits === 0 && bpp < 8);
     let ab = state.aBits > 0 ? state.aBits : (bpp < 8 ? bpp : 0);
-    const bppBytes = bpp >> 3;
-    const dataView = new DataView(wasmMemory.buffer, dirtyRectsPtr, MAX_DIRTY_RECTS * RECT_STRIDE);
-    const isFullScreen = dirtyCount === 1 &&
-      dataView.getInt32(0, true) === 0 &&
-      dataView.getInt32(4, true) === 0 &&
-      dataView.getInt32(8, true) === w &&
-      dataView.getInt32(12, true) === h;
+    // Rects start at offset +4 in the dirty list struct
+    const rectsBase = dirtyRectsWasmPtr + 4;
+    const count = Math.min(dirtyCount, MAX_DIRTY_RECTS);
+
+    const isFullScreen = count === 1 &&
+      mem.getInt32(rectsBase + 0, true) === 0 &&
+      mem.getInt32(rectsBase + 4, true) === 0 &&
+      mem.getInt32(rectsBase + 8, true) === w &&
+      mem.getInt32(rectsBase + 12, true) === h;
 
     if (isFullScreen) {
       renderFullFrame(state, w, h, bpp, vramPtr);
+      // Clear the pointer so we don't render again next frame
+      getMem().setUint32(statePtr + 140, 0, true);
       return;
     }
 
-    for (let r = 0; r < dirtyCount && r < MAX_DIRTY_RECTS; r++) {
-      const off = r * RECT_STRIDE;
-      const rx = dataView.getInt32(off, true);
-      const ry = dataView.getInt32(off + 4, true);
-      const rw = dataView.getInt32(off + 8, true);
-      const rh = dataView.getInt32(off + 12, true);
+    for (let r = 0; r < count; r++) {
+      const off = rectsBase + r * RECT_STRIDE;
+      const rx = mem.getInt32(off + 0, true);
+      const ry = mem.getInt32(off + 4, true);
+      const rw = mem.getInt32(off + 8, true);
+      const rh = mem.getInt32(off + 12, true);
 
       let cx = rx, cy = ry, cw = rw, ch = rh;
       if (cx < 0) { cw += cx; cx = 0; }
@@ -772,6 +820,8 @@
       unpackPixelsToImageData(w, h, bpp, vramPtr, pixels, u32, cx, cy, cw, ch, state.rBits, state.rShift, state.gBits, state.gShift, state.bBits, state.bShift, ab, state.aShift, isGrayscale);
       ctx.putImageData(rectData, cx, cy);
     }
+    // Clear the dirty rects pointer
+    getMem().setUint32(statePtr + 140, 0, true);
   }
 
 
@@ -781,22 +831,22 @@
     if (!statePtr) return;
     const mem = getMem();
     const ptr = statePtr;
-    mem.setInt32(ptr + 660, mouseX, true);
-    mem.setInt32(ptr + 664, mouseY, true);
-    mem.setUint32(ptr + 668, mouseButtons, true);
-    mem.setInt32(ptr + 672, mouseWheel, true);
-    
-    const keysMem = new Uint8Array(wasmMemory.buffer, ptr + 676, KEYS_COUNT);
+    mem.setInt32(ptr + 144, mouseX, true);
+    mem.setInt32(ptr + 148, mouseY, true);
+    mem.setUint32(ptr + 152, mouseButtons, true);
+    mem.setInt32(ptr + 156, mouseWheel, true);
+
+    const keysMem = new Uint8Array(wasmMemory.buffer, ptr + 160, KEYS_COUNT);
     keysMem.set(keysDown);
 
-    mem.setUint32(ptr + 932, gamepadBtns, true);
-    mem.setUint32(ptr + 936, (performance.now() - startTime) | 0, true);
+    mem.setUint32(ptr + 416, gamepadBtns, true);
+    mem.setUint32(ptr + 420, (performance.now() - startTime) | 0, true);
   }
 
   function resetInput() {
     if (!statePtr) return;
     mouseWheel = 0;
-    getMem().setInt32(statePtr + 672, 0, true);
+    getMem().setInt32(statePtr + 156, 0, true);
   }
 
   // ── Keyboard ───────────────────────────────────────────────────────────
@@ -1011,9 +1061,9 @@
       }
 
       if (statePtr) {
-        memView.setUint32(statePtr + 964, readPtr, true);
+        memView.setUint32(statePtr + 448, readPtr, true);  // audio_read
         if (underrun) {
-          const uOff = statePtr + 968;
+          const uOff = statePtr + 452;  // audio_underrun
           memView.setUint32(uOff, memView.getUint32(uOff, true) + 1, true);
         }
       }
@@ -1032,8 +1082,19 @@
 
   // ── Main Loop ──────────────────────────────────────────────────────────
 
-  function frame() {
+  function frame(now) {
     if (!running) return;
+
+    // Respect target_fps: read it from state if available
+    const targetFps = statePtr ? getMem().getUint32(statePtr + 424, true) : 0;
+    if (targetFps > 0) {
+      const interval = 1000 / targetFps;
+      if (now - lastFrameTime < interval - 0.5) {
+        requestAnimationFrame(frame);
+        return;
+      }
+    }
+    lastFrameTime = now;
 
     // 1. Write input to globals
     writeInputToGlobals();
@@ -1071,25 +1132,15 @@
       }
     }
 
-    // 4. Render dirty rects
-    if (g.dirtyCount > 0) {
-      renderDirtyRects(g, w, h, bpp, statePtr + g.vramOffset, g.dirtyCount, g.dirtyRects);
-      // Reset dirty count
-      getMem().setUint32(statePtr + 144, 0, true);
+    // 4. Render dirty rects (via pointer)
+    if (g.dirtyRectsPtr) {
+      renderDirtyRects(g, w, h, bpp, statePtr + g.vramOffset, g.dirtyRectsPtr);
     }
-    
 
-
-    // 6. Reset mouse wheel
+    // 5. Reset mouse wheel
     resetInput();
-    
-    // Check if ROM wants a specific framerate
-    var target = g.targetFps;
-    if (target > 0) {
-      setTimeout(frame, 1000 / target);
-    } else {
-      requestAnimationFrame(frame);
-    }
+
+    requestAnimationFrame(frame);
   }
 
   // ── WASM Loading ───────────────────────────────────────────────────────
@@ -1176,13 +1227,8 @@
       console.log('ROM loaded. Title:', readTitle());
       
       running = true;
-      var nextFrame = function () { requestAnimationFrame(frame); };
-      var target = g.targetFps;
-      if (target > 0) {
-        var delay = 1000 / target;
-        nextFrame = function () { setTimeout(frame, delay); };
-      }
-      nextFrame();
+      lastFrameTime = 0;
+      requestAnimationFrame(frame);
     }).catch(function (err) {
       console.error('Failed to load ROM:', err);
     });

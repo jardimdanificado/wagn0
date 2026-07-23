@@ -24,18 +24,18 @@ void draw() {
 ```
 
 `pixel_t` is `uint64_t`. The canvas BPP and format are set at
-compile time via `wagner.json` using the `"format"` property. All drawing functions convert
+compile time via `wagner.json` using the `"color"` property (defaults to `"RGBA8888"` if omitted). All drawing functions convert
 to the canvas format automatically.
 
-You can specify arbitrary bitfield layouts (e.g. `R5G6B5`, `A4`, `X8R8G8B8`, `RGBA16161616`).
-The compiler will pack pixels to the nearest power-of-two BPP (1, 2, 4, 8, 16, 24, 32, 64).
+You can specify standard presets (e.g. `RGBA8888`, `RGB565`, `RGB332`, `RGB888`, `A1`, `A2`, `A4`, `A8`) or custom bitfields (e.g. `R5G6B5`, `A4`, `X8R8G8B8`).
+The compiler packs pixels to the nearest power-of-two BPP (1, 2, 4, 8, 16, 24, 32, 64).
 
-If you only specify an Alpha channel (like `A1`, `A4`, `A8`), the engine operates in **Grayscale Mode**, mapping Luminance into the A channel.
+Alpha/Grayscale formats (`A1`, `A2`, `A4`, `A8`) map Luminance into the A channel.
 
 ```json
 {
   "name": "my_retro_game",
-  "format": "R5G6B5"
+  "color": "RGB565"
 }
 ```
 
@@ -219,9 +219,9 @@ templates/    project skeleton for `wagner new`
 | Command | Description |
 |---------|-------------|
 | `wagner new <name>` | Create project with `assets/` directory |
-| `wagner build` | Compile project to WASM |
-| `wagner run [--runner native\|sm]` | Run with host |
-| `wagner dev [--runner native\|sm]` | Watch + rebuild + run |
+| `wagner build [-C <dir>]` | Compile project to WASM (optional `-C` path) |
+| `wagner run [-C <dir>] [--runner native\|sm]` | Run with host (optional `-C` path) |
+| `wagner dev [-C <dir>] [--runner native\|sm]` | Watch + rebuild + run |
 
 ## Credits
 
